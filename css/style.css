@@ -37,7 +37,7 @@ button { font: inherit; color: inherit; cursor: pointer; }
 /* ── 상단 ─────────────────────────────────────────── */
 .topbar {
   display: grid;
-  grid-template-columns: 44px 1fr 44px;
+  grid-template-columns: 88px 1fr 88px;
   align-items: center;
   padding: 14px 10px 6px;
 }
@@ -59,6 +59,8 @@ button { font: inherit; color: inherit; cursor: pointer; }
   color: var(--dim);
 }
 .icon:active { background: #2c2c2e; }
+.side { display: flex; }
+.side.end { justify-content: flex-end; }
 
 .lengths {
   display: flex;
@@ -244,6 +246,43 @@ button { font: inherit; color: inherit; cursor: pointer; }
   white-space: nowrap;
 }
 .sheet-actions button.primary { background: var(--ok); color: var(--on-light); }
+
+/* 직접 출제 */
+.compose-input {
+  width: 100%;
+  margin: 14px 0 10px;
+  padding: 13px 14px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #121214;
+  color: var(--text);
+  font-size: 18px;
+  font-weight: 700;
+  text-align: center;
+}
+.compose-input:focus { outline: none; border-color: var(--ok); }
+.compose-status {
+  text-align: center;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--dim);
+  margin: 0;
+  min-height: 20px;
+}
+.compose-status.good { color: var(--ok); }
+.compose-status.bad { color: #ff8a80; }
+.compose-link {
+  width: 100%;
+  margin-top: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #121214;
+  color: var(--dim);
+  font-size: 12px;
+}
+.compose-link[hidden] { display: none; }
+.sheet-actions button:disabled { opacity: .4; cursor: default; }
 
 .legend { display: flex; gap: 6px; justify-content: center; margin: 10px 0 4px; }
 .legend span {

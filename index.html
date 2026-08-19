@@ -11,9 +11,14 @@
 <div class="app">
 
   <header class="topbar">
-    <button class="icon" id="btn-new" type="button" aria-label="새 게임">↻</button>
+    <div class="side">
+      <button class="icon" id="btn-new" type="button" aria-label="새 단어">↻</button>
+    </div>
     <h1 id="title">오늘의 단어</h1>
-    <button class="icon" id="btn-help" type="button" aria-label="규칙 보기">⋯</button>
+    <div class="side end">
+      <button class="icon" id="btn-compose" type="button" aria-label="직접 출제">✎</button>
+      <button class="icon" id="btn-help" type="button" aria-label="규칙 보기">⋯</button>
+    </div>
   </header>
 
   <nav class="lengths" id="lengths" aria-label="자모 개수 선택">

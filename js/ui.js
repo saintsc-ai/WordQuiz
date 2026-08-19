@@ -200,10 +200,12 @@
 
   /* 공유 ------------------------------------------------------------------ */
 
-  /** 지금 문제를 그대로 다시 낼 수 있는 링크. 정답은 해시에 인코딩해 숨긴다. */
-  function puzzleLink() {
-    return location.href.replace(/#.*$/, '') + '#p=' + game.code();
+  /** 단어 하나를 그대로 낼 수 있는 링크. 정답은 해시에 인코딩해 숨긴다. */
+  function linkFor(word) {
+    return location.href.replace(/#.*$/, '') + '#p=' + window.Game.encode(word);
   }
+
+  function puzzleLink() { return linkFor(game.answer); }
 
   function hashCode() {
     var m = /[#&]p=([A-Za-z0-9_-]+)/.exec(location.hash);
@@ -293,6 +295,84 @@
     });
   }
 
+  /* 직접 출제 ------------------------------------------------------------ */
+
+  function showCompose() {
+    openSheet(
+      '<h2>직접 출제</h2>' +
+      '<p class="hint">사전에 있는 명사를 넣으면 그 단어로 푸는 링크를 만듭니다.<br>' +
+        '자모 5 ~ 9칸짜리만 낼 수 있어요.</p>' +
+      '<input class="compose-input" id="cw" type="text" placeholder="예: 안녕"' +
+        ' autocomplete="off" autocapitalize="off" spellcheck="false" maxlength="12">' +
+      '<p class="compose-status" id="cs">한글 명사를 입력하세요</p>' +
+      '<input class="compose-link" id="cl" type="text" readonly hidden>' +
+      '<div class="sheet-actions">' +
+        '<button type="button" id="act-play" disabled>바로 풀기</button>' +
+        '<button type="button" class="primary" id="act-copy" disabled>링크 복사</button>' +
+      '</div>'
+    );
+
+    var input = document.getElementById('cw');
+    var status = document.getElementById('cs');
+    var linkBox = document.getElementById('cl');
+    var playBtn = document.getElementById('act-play');
+    var copyBtn = document.getElementById('act-copy');
+    var word = null;   // 지금 유효한 단어
+    var seq = 0;       // 사전 로딩이 늦게 끝난 결과가 최신 입력을 덮지 않게
+
+    function setState(msg, cls, ok) {
+      status.textContent = msg;
+      status.className = 'compose-status' + (cls ? ' ' + cls : '');
+      word = ok || null;
+      playBtn.disabled = copyBtn.disabled = !word;
+      if (word) {
+        linkBox.value = linkFor(word);
+        linkBox.hidden = false;
+      } else {
+        linkBox.hidden = true;
+      }
+    }
+
+    function check() {
+      var w = input.value.trim();
+      var my = ++seq;
+      if (!w) { setState('한글 명사를 입력하세요', ''); return; }
+      if (!/^[가-힣]+$/.test(w)) { setState('완성된 한글 단어만 됩니다', 'bad'); return; }
+      var jamo = window.Jamo.decompose(w);
+      if (!jamo) { setState('ㅙ · ㅞ 가 들어간 단어는 낼 수 없어요', 'bad'); return; }
+      if (LENGTHS.indexOf(jamo.length) < 0) {
+        setState('자모 ' + jamo.length + '칸 — 5 ~ 9칸만 됩니다', 'bad');
+        return;
+      }
+      setState('확인하는 중…', '');
+      window.Dict.load(jamo.length).then(function (dict) {
+        if (my !== seq) return;
+        if (dict.valid.has(jamo)) setState('자모 ' + jamo.length + '칸 · 낼 수 있어요', 'good', w);
+        else setState('사전에 없는 명사예요', 'bad');
+      }).catch(function () {
+        if (my === seq) setState('사전을 불러오지 못했습니다', 'bad');
+      });
+    }
+
+    input.addEventListener('input', check);
+    input.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter' && word) copyBtn.click();
+    });
+    input.focus();
+
+    copyBtn.addEventListener('click', function () {
+      if (word) copyThen(linkFor(word), '출제 링크를 복사했어요');
+    });
+
+    playBtn.addEventListener('click', function () {
+      if (!word) return;
+      var w = word;
+      closeSheet();
+      try { history.replaceState(null, '', linkFor(w)); } catch (e) { /* file:// */ }
+      start(window.Jamo.decompose(w).length, w);
+    });
+  }
+
   function showHelp() {
     openSheet(
       '<h2>규칙</h2>' +
@@ -309,6 +389,7 @@
       '</div>' +
       '<p style="text-align:center;font-size:13px">자리까지 맞음 · 들어있지만 다른 자리 · 없음</p>' +
       '<div class="sheet-actions">' +
+        '<button type="button" id="act-compose2">직접 출제</button>' +
         '<button type="button" class="primary" id="act-link2">지금 단어 링크 복사</button>' +
       '</div>' +
       '<p style="font-size:12px;color:#8e8e93;text-align:center;margin-top:16px">' +
@@ -317,6 +398,7 @@
     document.getElementById('act-link2').addEventListener('click', function () {
       copyThen(puzzleLink(), '문제 링크를 복사했어요');
     });
+    document.getElementById('act-compose2').addEventListener('click', showCompose);
   }
 
   /* 게임 진행 ------------------------------------------------------------- */
@@ -400,6 +482,7 @@
   document.getElementById('btn-new').addEventListener('click', function () {
     if (game && !locked) newGame();
   });
+  document.getElementById('btn-compose').addEventListener('click', showCompose);
   document.getElementById('btn-help').addEventListener('click', showHelp);
 
   // 같은 탭에 링크를 붙여넣는 경우
