@@ -71,6 +71,7 @@
   function buildBoard() {
     board.style.setProperty('--cols', String(game.length));
     board.style.gridTemplateColumns = 'repeat(' + game.length + ', var(--tile))';
+    sizeBoard();
     board.innerHTML = '';
     for (var r = 0; r < window.Game.MAX_TRIES; r++) {
       for (var c = 0; c < game.length; c++) {
@@ -83,6 +84,28 @@
 
   function tileAt(r, c) {
     return board.children[r * game.length + c];
+  }
+
+  /*
+   * 타일 크기는 가로만으로 정할 수 없다. 세로가 모자라면 보드가 배정된 높이를
+   * 넘겨 버리는데, .board-wrap 이 가운데 정렬이라 넘친 만큼 위아래로 삐져나와
+   * 길이 선택 칩과 자판을 덮는다. 남은 폭과 높이를 실제로 재서 둘 중 작은 쪽에 맞춘다.
+   */
+  var TILE_MAX = 62;
+  var TILE_MIN = 24;
+  var GAP = 8;
+
+  function sizeBoard() {
+    if (!game) return;
+    var wrap = board.parentNode;
+    var cs = getComputedStyle(wrap);
+    var w = wrap.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
+    var h = wrap.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom);
+    var rows = window.Game.MAX_TRIES;
+    var byWidth = (w - (game.length - 1) * GAP) / game.length;
+    var byHeight = (h - (rows - 1) * GAP) / rows;
+    var tile = Math.min(TILE_MAX, byWidth, byHeight);
+    board.style.setProperty('--tile', Math.max(TILE_MIN, tile).toFixed(2) + 'px');
   }
 
   // 확정된 행과 입력 중인 행을 다시 그린다.
@@ -489,6 +512,10 @@
   window.addEventListener('hashchange', function () {
     if (hashCode()) { closeSheet(); startFromHash(); }
   });
+
+  // 회전, 주소창 접힘, 데스크톱 창 크기 변경
+  window.addEventListener('resize', sizeBoard);
+  window.addEventListener('orientationchange', sizeBoard);
 
   buildKeyboard();
   startFromHash();

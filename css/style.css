@@ -92,6 +92,9 @@ button { font: inherit; color: inherit; cursor: pointer; }
   justify-content: center;
   min-height: 0;
   padding: 8px 24px;
+  /* 타일이 최소 크기까지 줄고도 안 들어가는 극단적인 경우에만 잘라낸다.
+     이게 없으면 넘친 만큼 위아래로 삐져나와 칩과 자판을 덮는다. */
+  overflow: hidden;
 }
 .board {
   /* --cols 는 JS 가 인라인으로 넣는다.
@@ -99,6 +102,8 @@ button { font: inherit; color: inherit; cursor: pointer; }
      반드시 여기 있어야 한다. :root 에 두면 --cols 가 없어 통째로 무효가 된다.
      grid-template-columns 도 JS 가 넣는다. repeat() 의 반복 횟수에는 var() 를 못 쓴다. */
   --gap: 8px;
+  /* JS 가 실제 남은 공간을 재서 --tile 을 인라인으로 덮어쓴다.
+     아래 값은 그 전에 잠깐 쓰이는 가로 기준 어림값이다. */
   --tile: min(62px, calc((min(472px, 100vw - 48px) - (var(--cols) - 1) * var(--gap)) / var(--cols)));
   display: grid;
   gap: var(--gap);
