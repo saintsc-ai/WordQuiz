@@ -4,6 +4,10 @@
 (function () {
   'use strict';
 
+  var LENGTHS = [5, 6, 9];
+  var TITLE = '오늘의 단어';
+  var TITLE_SHARED = '공유받은 단어';
+
   // 참고 이미지와 같은 배열. 두벌식에서 쌍자음과 복합모음 키를 뺀 24키.
   var ROWS = [
     ['ㅂ', 'ㅈ', 'ㄷ', 'ㄱ', 'ㅅ', 'ㅛ', 'ㅕ', 'ㅑ', '⌫'],
@@ -27,9 +31,11 @@
   var sheet = document.getElementById('sheet');
   var sheetBody = document.getElementById('sheet-body');
   var lengths = document.getElementById('lengths');
+  var titleEl = document.getElementById('title');
 
   var game = null;
   var locked = false;   // 뒤집기 애니메이션 동안 입력을 막는다
+  var shared = false;   // 링크로 받은 문제를 푸는 중인가
   var keyEls = {};
   var toastTimer = null;
 
@@ -103,7 +109,7 @@
 
   function paintSubmit() {
     if (game.status !== 'play') {
-      submitBtn.textContent = '새 게임 시작';
+      submitBtn.textContent = '결과 보기';
       submitBtn.classList.add('ready');
       return;
     }
@@ -131,7 +137,7 @@
 
   function onSubmit() {
     if (locked) return;
-    if (game.status !== 'play') { newGame(); return; }
+    if (game.status !== 'play') { showResult(); return; }
 
     var rowIndex = game.rows.length;
     var res = game.submit();
@@ -179,7 +185,7 @@
     toastEl.textContent = msg;
     toastEl.classList.add('show');
     clearTimeout(toastTimer);
-    toastTimer = setTimeout(function () { toastEl.classList.remove('show'); }, 1400);
+    toastTimer = setTimeout(function () { toastEl.classList.remove('show'); }, 1600);
   }
 
   function openSheet(html) {
@@ -191,6 +197,58 @@
 
   document.getElementById('sheet-close').addEventListener('click', closeSheet);
   sheet.addEventListener('click', function (e) { if (e.target === sheet) closeSheet(); });
+
+  /* 공유 ------------------------------------------------------------------ */
+
+  /** 지금 문제를 그대로 다시 낼 수 있는 링크. 정답은 해시에 인코딩해 숨긴다. */
+  function puzzleLink() {
+    return location.href.replace(/#.*$/, '') + '#p=' + game.code();
+  }
+
+  function hashCode() {
+    var m = /[#&]p=([A-Za-z0-9_-]+)/.exec(location.hash);
+    return m ? m[1] : null;
+  }
+
+  function clearHash() {
+    if (!location.hash) return;
+    // file:// 에서는 replaceState 가 막힐 수 있다.
+    try {
+      history.replaceState(null, '', location.href.replace(/#.*$/, ''));
+    } catch (e) {
+      location.hash = '';
+    }
+  }
+
+  /** clipboard API 는 https / localhost 에서만 쓸 수 있어 대체 경로를 둔다. */
+  function copy(text) {
+    if (navigator.clipboard && window.isSecureContext) {
+      return navigator.clipboard.writeText(text);
+    }
+    return new Promise(function (resolve, reject) {
+      var ta = document.createElement('textarea');
+      ta.value = text;
+      ta.setAttribute('readonly', '');
+      ta.style.position = 'fixed';
+      ta.style.opacity = '0';
+      document.body.appendChild(ta);
+      ta.select();
+      var ok = false;
+      try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+      document.body.removeChild(ta);
+      if (ok) { resolve(); } else { reject(new Error('copy failed')); }
+    });
+  }
+
+  function copyThen(text, msg) {
+    copy(text).then(function () {
+      toast(msg);
+    }).catch(function () {
+      toast('복사하지 못했어요');
+    });
+  }
+
+  /* 결과 ------------------------------------------------------------------ */
 
   var ICON = { ok: '🟩', warn: '🟨', off: '⬜' };
 
@@ -207,8 +265,11 @@
         (won ? game.rows.length + '번 만에 맞혔어요' : '5번 안에 못 맞혔어요') +
       '</p>' +
       '<div class="grid">' + grid + '</div>' +
+      '<p class="hint">링크를 보내면 친구도 <b>같은 단어</b>를 풀 수 있어요.<br>' +
+        '링크에 정답이 드러나지는 않습니다.</p>' +
       '<div class="sheet-actions">' +
-        '<button type="button" id="act-share">결과 복사</button>' +
+        '<button type="button" id="act-link">링크 복사</button>' +
+        '<button type="button" id="act-share">결과 공유</button>' +
         '<button type="button" class="primary" id="act-again">한 판 더</button>' +
       '</div>'
     );
@@ -217,12 +278,17 @@
       closeSheet();
       newGame();
     });
+
+    document.getElementById('act-link').addEventListener('click', function () {
+      copyThen(puzzleLink(), '문제 링크를 복사했어요');
+    });
+
     document.getElementById('act-share').addEventListener('click', function () {
-      var text = game.shareText();
-      if (navigator.clipboard) {
-        navigator.clipboard.writeText(text).then(function () { toast('결과를 복사했어요'); });
+      var text = game.shareText() + '\n' + puzzleLink();
+      if (navigator.share) {
+        navigator.share({ text: text }).catch(function () { /* 사용자가 취소한 것 */ });
       } else {
-        toast('복사를 지원하지 않는 브라우저예요');
+        copyThen(text, '결과와 링크를 복사했어요');
       }
     });
   }
@@ -242,28 +308,63 @@
         '<span style="background:var(--absent)">ㅋ</span>' +
       '</div>' +
       '<p style="text-align:center;font-size:13px">자리까지 맞음 · 들어있지만 다른 자리 · 없음</p>' +
+      '<div class="sheet-actions">' +
+        '<button type="button" class="primary" id="act-link2">지금 단어 링크 복사</button>' +
+      '</div>' +
       '<p style="font-size:12px;color:#8e8e93;text-align:center;margin-top:16px">' +
         '단어 출처: 국립국어원 한국어기초사전</p>'
     );
+    document.getElementById('act-link2').addEventListener('click', function () {
+      copyThen(puzzleLink(), '문제 링크를 복사했어요');
+    });
   }
 
-  /* 게임 진행 */
+  /* 게임 진행 ------------------------------------------------------------- */
+
+  function paintTitle() {
+    titleEl.textContent = shared ? TITLE_SHARED : TITLE;
+  }
+
+  function markChips(n) {
+    Array.prototype.forEach.call(lengths.children, function (b) {
+      b.setAttribute('aria-pressed', String(Number(b.dataset.len) === n));
+    });
+  }
+
+  /** 같은 길이로 새 단어를 뽑는다. 공유받은 문제를 풀던 중이면 거기서 빠져나온다. */
   function newGame() {
+    if (!game) return;
     game.reset();
+    shared = false;
+    clearHash();
+    paintTitle();
     buildBoard();
     paintKeyboard();
     paintBoard();
   }
 
-  function setLength(n) {
-    Array.prototype.forEach.call(lengths.children, function (b) {
-      b.setAttribute('aria-pressed', String(Number(b.dataset.len) === n));
-    });
-    try { localStorage.setItem('wordquiz.length', String(n)); } catch (e) { /* 무시 */ }
-
+  /**
+   * 길이 n 의 사전을 불러와 판을 시작한다.
+   * word 를 주면 그 단어를 정답으로 고정한다(링크로 받은 문제).
+   */
+  function start(n, word) {
+    markChips(n);
+    if (!word) {
+      try { localStorage.setItem('wordquiz.length', String(n)); } catch (e) { /* 무시 */ }
+    }
     submitBtn.textContent = '사전 불러오는 중…';
-    window.Dict.load(n).then(function (dict) {
+    return window.Dict.load(n).then(function (dict) {
       game = new window.Game(dict);
+      shared = false;
+      if (word) {
+        if (game.reset(word)) {
+          shared = true;
+        } else {
+          toast('링크의 단어를 열 수 없어 새 단어로 시작합니다');
+          clearHash();
+        }
+      }
+      paintTitle();
       buildBoard();
       paintKeyboard();
       paintBoard();
@@ -272,18 +373,40 @@
     });
   }
 
+  /** 해시에 문제가 실려 있으면 그 판으로 시작한다. 아니면 저장된 길이로 새 판. */
+  function startFromHash() {
+    var code = hashCode();
+    if (code) {
+      var word = null;
+      try { word = window.Game.decode(code); } catch (e) { word = null; }
+      var jamo = word && window.Jamo.decompose(word);
+      if (jamo && LENGTHS.indexOf(jamo.length) >= 0) return start(jamo.length, word);
+      toast('링크가 올바르지 않아요');
+      clearHash();
+    }
+    var saved = 6;
+    try { saved = Number(localStorage.getItem('wordquiz.length')) || 6; } catch (e) { /* 무시 */ }
+    return start(LENGTHS.indexOf(saved) >= 0 ? saved : 6);
+  }
+
   lengths.addEventListener('click', function (e) {
     var b = e.target.closest('button[data-len]');
-    if (b) setLength(Number(b.dataset.len));
+    if (!b || locked) return;
+    clearHash();
+    start(Number(b.dataset.len));
   });
+
   submitBtn.addEventListener('click', onSubmit);
   document.getElementById('btn-new').addEventListener('click', function () {
     if (game && !locked) newGame();
   });
   document.getElementById('btn-help').addEventListener('click', showHelp);
 
+  // 같은 탭에 링크를 붙여넣는 경우
+  window.addEventListener('hashchange', function () {
+    if (hashCode()) { closeSheet(); startFromHash(); }
+  });
+
   buildKeyboard();
-  var saved = 6;
-  try { saved = Number(localStorage.getItem('wordquiz.length')) || 6; } catch (e) { /* 무시 */ }
-  setLength([5, 6, 9].indexOf(saved) >= 0 ? saved : 6);
+  startFromHash();
 })();

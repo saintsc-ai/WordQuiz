@@ -47,14 +47,27 @@
     this.reset();
   }
 
-  Game.prototype.reset = function () {
-    var pool = this.dict.answers;
-    this.answer = pool[Math.floor(Math.random() * pool.length)];
-    this.answerJamo = global.Jamo.decompose(this.answer);
+  /**
+   * 판을 새로 깐다. word 를 주면 그 단어를, 없으면 정답 후보에서 무작위로 고른다.
+   * 주어진 word 가 이 길이의 사전 단어가 아니면 아무것도 바꾸지 않고 false.
+   */
+  Game.prototype.reset = function (word) {
+    var jamo;
+    if (word) {
+      jamo = global.Jamo.decompose(word);
+      if (!jamo || jamo.length !== this.length || !this.dict.valid.has(jamo)) return false;
+    } else {
+      var pool = this.dict.answers;
+      word = pool[Math.floor(Math.random() * pool.length)];
+      jamo = global.Jamo.decompose(word);
+    }
+    this.answer = word;
+    this.answerJamo = jamo;
     this.rows = [];        // [{ jamo, marks }]
     this.current = '';     // 입력 중인 자모열
     this.keyState = {};    // 자모 -> ok|warn|off (좋은 쪽이 이긴다)
     this.status = 'play';  // play | win | lose
+    return true;
   };
 
   Game.prototype.type = function (key) {
@@ -106,7 +119,31 @@
     return head + '\n' + body;
   };
 
+  /*
+   * 공유 링크용 코드. 정답 단어를 UTF-8 -> XOR -> base64url 로 감싼다.
+   * 암호가 아니라 URL 에 정답이 그대로 보이지 않게 하려는 것뿐이다.
+   */
+  var MASK = 0x5a;
+
+  function encode(word) {
+    var bytes = new TextEncoder().encode(word);
+    var bin = '';
+    for (var i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i] ^ MASK);
+    return btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  }
+
+  function decode(code) {
+    var bin = atob(code.replace(/-/g, '+').replace(/_/g, '/'));
+    var bytes = new Uint8Array(bin.length);
+    for (var i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i) ^ MASK;
+    return new TextDecoder().decode(bytes);
+  }
+
+  Game.prototype.code = function () { return encode(this.answer); };
+
   Game.MAX_TRIES = MAX_TRIES;
   Game.score = score;
+  Game.encode = encode;
+  Game.decode = decode;
   global.Game = Game;
 })(window);
