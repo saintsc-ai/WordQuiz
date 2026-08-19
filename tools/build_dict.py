@@ -23,7 +23,7 @@ ROOT = Path(__file__).resolve().parent.parent
 RAW = ROOT / "data" / "raw" / "krdict_json.zip"
 OUT = ROOT / "data"
 
-LENGTHS = (3, 6, 9)
+LENGTHS = (5, 6, 9)
 ANSWER_LEVELS = {"초급", "중급"}
 
 CHO = "ㄱㄲㄴㄷㄸㄹㅁㅂㅃㅅㅆㅇㅈㅉㅊㅋㅌㅍㅎ"

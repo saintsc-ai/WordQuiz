@@ -230,7 +230,7 @@
     openSheet(
       '<h2>규칙</h2>' +
       '<ol>' +
-        '<li>자모 3 · 6 · 9개 중 하나를 골라 그 길이의 명사를 맞힙니다. 예: 안녕 → ㅇㅏㄴㄴㅕㅇ (6칸)</li>' +
+        '<li>자모 5 · 6 · 9개 중 하나를 골라 그 길이의 명사를 맞힙니다. 예: 안녕 → ㅇㅏㄴㄴㅕㅇ (6칸)</li>' +
         '<li>기회는 5번. 추측하는 단어도 사전에 있는 명사여야 합니다.</li>' +
         '<li>쌍자음 · 겹받침 · 복합모음은 기본 자모를 이어서 칩니다. ㄲ=ㄱㄱ, ㄺ=ㄹㄱ, ㅐ=ㅏㅣ, ㅘ=ㅗㅏ</li>' +
         '<li>ㅙ · ㅞ 가 들어간 단어는 나오지 않습니다.</li>' +
@@ -284,5 +284,5 @@
   buildKeyboard();
   var saved = 6;
   try { saved = Number(localStorage.getItem('wordquiz.length')) || 6; } catch (e) { /* 무시 */ }
-  setLength([3, 6, 9].indexOf(saved) >= 0 ? saved : 6);
+  setLength([5, 6, 9].indexOf(saved) >= 0 ? saved : 6);
 })();
