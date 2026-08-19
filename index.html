@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1">
+<meta name="theme-color" content="#0d0d0f">
+<title>한글 워들 — 오늘의 챌린지</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<div class="app">
+
+  <header class="topbar">
+    <button class="icon" id="btn-new" type="button" aria-label="새 게임">↻</button>
+    <h1>오늘의 챌린지</h1>
+    <button class="icon" id="btn-help" type="button" aria-label="규칙 보기">⋯</button>
+  </header>
+
+  <nav class="lengths" id="lengths" aria-label="자모 개수 선택">
+    <button type="button" data-len="3">3자모</button>
+    <button type="button" data-len="6">6자모</button>
+    <button type="button" data-len="9">9자모</button>
+  </nav>
+
+  <main class="board-wrap">
+    <div class="board" id="board"></div>
+  </main>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+  <footer class="bottom">
+    <div class="keyboard" id="keyboard"></div>
+    <button class="submit" id="btn-submit" type="button">글자를 입력하세요</button>
+  </footer>
+
+</div>
+
+<div class="sheet" id="sheet" hidden>
+  <div class="sheet-card" role="dialog" aria-modal="true">
+    <button class="sheet-close" id="sheet-close" type="button" aria-label="닫기">×</button>
+    <div class="sheet-body" id="sheet-body"></div>
+  </div>
+</div>
+
+<script src="js/jamo.js"></script>
+<script src="js/dict.js"></script>
+<script src="js/game.js"></script>
+<script src="js/ui.js"></script>
+</body>
+</html>
