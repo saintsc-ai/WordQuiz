@@ -63,7 +63,8 @@
 
   /* 보드 */
   function buildBoard() {
-    board.style.setProperty('--cols', game.length);
+    board.style.setProperty('--cols', String(game.length));
+    board.style.gridTemplateColumns = 'repeat(' + game.length + ', var(--tile))';
     board.innerHTML = '';
     for (var r = 0; r < window.Game.MAX_TRIES; r++) {
       for (var c = 0; c < game.length; c++) {

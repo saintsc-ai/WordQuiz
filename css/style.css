@@ -9,7 +9,6 @@
   --warn: #ffd84a;
   --absent: #d3d6da;
   --on-light: #16161a;
-  --tile: clamp(34px, calc((100vw - 48px - (var(--cols) - 1) * 8px) / var(--cols)), 62px);
 }
 
 * { box-sizing: border-box; }
@@ -92,9 +91,14 @@ button { font: inherit; color: inherit; cursor: pointer; }
   padding: 8px 24px;
 }
 .board {
+  /* --cols 는 JS 가 인라인으로 넣는다.
+     커스텀 속성은 '선언된 자리'에서 치환되므로 var(--cols) 를 참조하는 --tile 도
+     반드시 여기 있어야 한다. :root 에 두면 --cols 가 없어 통째로 무효가 된다.
+     grid-template-columns 도 JS 가 넣는다. repeat() 의 반복 횟수에는 var() 를 못 쓴다. */
+  --gap: 8px;
+  --tile: min(62px, calc((min(472px, 100vw - 48px) - (var(--cols) - 1) * var(--gap)) / var(--cols)));
   display: grid;
-  gap: 8px;
-  grid-template-columns: repeat(var(--cols), var(--tile));
+  gap: var(--gap);
 }
 .tile {
   width: var(--tile);
