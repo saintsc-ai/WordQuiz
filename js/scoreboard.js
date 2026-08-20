@@ -35,6 +35,9 @@
     return fetch(url, options).then(function (res) {
       if (!res.ok) throw new Error('scoreboard request failed');
       return res.json();
+    }).then(function (data) {
+      if (data && data.ok === false) throw new Error(data.error || 'scoreboard request failed');
+      return data;
     });
   }
 

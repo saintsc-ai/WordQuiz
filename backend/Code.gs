@@ -40,7 +40,7 @@ function doPost(e) {
 
   var score = Math.max(0, Number(data.score) || 0);
   var attempts = Math.max(0, Math.min(5, Number(data.attempts) || 0));
-  var length = Math.max(5, Math.min(9, Number(data.jamoLength) || 0));
+  var length = Math.max(5, Math.min(10, Number(data.jamoLength) || 0));
   var elapsed = Math.max(0, Number(data.elapsedSeconds) || 0);
   sheet.appendRow([
     new Date(), String(data.clientId), String(data.nickname).trim().slice(0, 20),
