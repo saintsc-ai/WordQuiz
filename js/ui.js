@@ -325,15 +325,15 @@
       );
       return;
     }
-    var params = kind === 'daily' ? { date: dateKey(), length: game ? game.length : '' } : {};
+    var params = kind === 'daily' ? { date: dateKey() } : {};
     window.WordQuizScoreboard.rankings(kind, params).then(function (data) {
       openSheet(
         '<h2>스코어보드</h2>' +
         '<div class="rank-tabs">' +
-          '<button type="button" class="' + (kind === 'daily' ? 'selected' : '') + '" id="rank-daily">오늘의 단어</button>' +
+          '<button type="button" class="' + (kind === 'daily' ? 'selected' : '') + '" id="rank-daily">오늘 순위</button>' +
           '<button type="button" class="' + (kind === 'overall' ? 'selected' : '') + '" id="rank-overall">누적 순위</button>' +
         '</div>' +
-        '<p class="rank-caption">' + (kind === 'daily' ? game.length + '자모 · 점수 / 시간' : '총점 · 승리 / 플레이') + '</p>' +
+        '<p class="rank-caption">' + (kind === 'daily' ? '전체 자모 · 점수 / 시간' : '총점 · 승리 / 플레이') + '</p>' +
         rankingRows(data.rows, kind === 'overall')
       );
       document.getElementById('rank-daily').addEventListener('click', function () { showScoreboard('daily'); });
