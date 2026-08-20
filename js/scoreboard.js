@@ -5,7 +5,7 @@
   'use strict';
 
   // Paste the deployed Apps Script Web App URL here.
-  var API_URL = 'https://script.google.com/macros/s/AKfycbxbIW9v3DtvZoOXopjqmbZHqqjvUtWA7EzXimns84jipOdAA9Xnp7b9QN6NLY1l5CVetQ/exec';
+  var API_URL = 'https://script.google.com/macros/s/AKfycbxD-d4jDdCR0QpSfA1SYl9JxuozrwnBRCKUCJTN2FuvbHekgKX6ahEF-bWnxP0e2zZ8Fw/exec';
 
   function configured() { return API_URL.length > 0; }
 
