@@ -65,9 +65,16 @@ function readRows_(sheet) {
 
 function daily_(rows, date, length) {
   var filtered = rows.filter(function (row) {
-    return row.puzzleDate === date && (!length || row.jamoLength === Number(length));
+    return rowDate_(row) === date && (!length || row.jamoLength === Number(length));
   });
   return { ok: true, rows: filtered.sort(sortScore_).slice(0, 100).map(publicRow_) };
+}
+
+function rowDate_(row) {
+  if (row.createdAt instanceof Date && !isNaN(row.createdAt.getTime())) {
+    return Utilities.formatDate(row.createdAt, Session.getScriptTimeZone(), 'yyyy-MM-dd');
+  }
+  return row.puzzleDate;
 }
 
 function overall_(rows) {
