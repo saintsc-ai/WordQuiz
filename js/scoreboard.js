@@ -5,7 +5,7 @@
   'use strict';
 
   // Paste the deployed Apps Script Web App URL here.
-  var API_URL = '';
+  var API_URL = 'https://script.google.com/macros/s/AKfycbxuoGa46Vd_IrJjVuhoHbFn-Jh3dn9ZXbLXNLIqptzkPfN6YfEBP9pYLU0ZwZF4rdoT2Q/exec';
   var PLAYER_KEY = 'wordquiz.player';
   var NAME_KEY = 'wordquiz.nickname';
 
