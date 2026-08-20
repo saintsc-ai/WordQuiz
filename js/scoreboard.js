@@ -6,30 +6,13 @@
 
   // Paste the deployed Apps Script Web App URL here.
   var API_URL = 'https://script.google.com/macros/s/AKfycbwK062u-OG6a6RGz8ZM8lSFU-q_L_sOqKrwtiijpK81gAPupMSS0DhEVcxNyGQ7ZQj3cw/exec';
-  var PLAYER_KEY = 'wordquiz.player';
-  var NAME_KEY = 'wordquiz.nickname';
 
   function configured() { return API_URL.length > 0; }
 
-  function playerId() {
-    var saved = null;
-    try { saved = localStorage.getItem(PLAYER_KEY); } catch (e) { /* ignore */ }
-    if (saved) return saved;
-    var id = global.crypto && global.crypto.randomUUID ?
-      global.crypto.randomUUID() : 'p-' + Date.now() + '-' + Math.random().toString(36).slice(2);
-    try { localStorage.setItem(PLAYER_KEY, id); } catch (e) { /* ignore */ }
-    return id;
-  }
-
-  function nickname() {
-    try { return localStorage.getItem(NAME_KEY) || ''; } catch (e) { return ''; }
-  }
-
-  function saveNickname(name) {
-    name = String(name || '').trim().slice(0, 20);
-    try { localStorage.setItem(NAME_KEY, name); } catch (e) { /* ignore */ }
-    return name;
-  }
+  // 닉네임과 익명 ID 는 js/store.js 가 보관한다.
+  function playerId() { return global.Store.playerId(); }
+  function nickname() { return global.Store.nickname(); }
+  function saveNickname(name) { return global.Store.saveNickname(name); }
 
   function request(url, options) {
     return fetch(url, options).then(function (res) {

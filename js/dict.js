@@ -10,6 +10,10 @@
 (function (global) {
   'use strict';
 
+  // 사전이 존재하는 자모 길이. tools/build_dict.py 의 LENGTHS 와 같아야 한다.
+  // (tools/check_sync.py 가 검사한다)
+  var LENGTHS = [5, 6, 7, 8, 9, 10];
+
   var cache = {};
 
   /** index.html 의 ?v= 와 같은 값을 붙인다. 사전만 낡은 채로 남는 일을 막는다. */
@@ -50,5 +54,5 @@
     return pending;
   }
 
-  global.Dict = { load: load };
+  global.Dict = { LENGTHS: LENGTHS, load: load };
 })(window);

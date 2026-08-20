@@ -4,7 +4,10 @@
 (function () {
   'use strict';
 
-  var LENGTHS = [5, 6, 7, 8, 9, 10];
+  var LENGTHS = window.Dict.LENGTHS;
+  var MAX_TRIES = window.Game.MAX_TRIES;
+  var LENGTH_RANGE = LENGTHS[0] + ' ~ ' + LENGTHS[LENGTHS.length - 1];
+  var DEFAULT_LENGTH = 6;
   var TITLE = '오늘의 단어';
   var TITLE_SHARED = '공유받은 단어';
 
@@ -42,6 +45,18 @@
   var keyEls = {};
   var toastTimer = null;
 
+  /* 길이 선택 칩 */
+  function buildLengths() {
+    lengths.innerHTML = '';
+    LENGTHS.forEach(function (n) {
+      var b = document.createElement('button');
+      b.type = 'button';
+      b.dataset.len = String(n);
+      b.textContent = n + '자모';
+      lengths.appendChild(b);
+    });
+  }
+
   /* 자판 */
   function buildKeyboard() {
     keyboard.innerHTML = '';
@@ -76,7 +91,7 @@
     board.style.gridTemplateColumns = 'repeat(' + game.length + ', var(--tile))';
     sizeBoard();
     board.innerHTML = '';
-    for (var r = 0; r < window.Game.MAX_TRIES; r++) {
+    for (var r = 0; r < MAX_TRIES; r++) {
       for (var c = 0; c < game.length; c++) {
         var t = document.createElement('div');
         t.className = 'tile';
@@ -104,7 +119,7 @@
     var cs = getComputedStyle(wrap);
     var w = wrap.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
     var h = wrap.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom);
-    var rows = window.Game.MAX_TRIES;
+    var rows = MAX_TRIES;
     var byWidth = (w - (game.length - 1) * GAP) / game.length;
     var byHeight = (h - (rows - 1) * GAP) / rows;
     var tile = Math.min(TILE_MAX, byWidth, byHeight);
@@ -113,7 +128,7 @@
 
   // 확정된 행과 입력 중인 행을 다시 그린다.
   function paintBoard() {
-    for (var r = 0; r < window.Game.MAX_TRIES; r++) {
+    for (var r = 0; r < MAX_TRIES; r++) {
       var row = game.rows[r];
       for (var c = 0; c < game.length; c++) {
         var t = tileAt(r, c);
@@ -386,7 +401,7 @@
       '<h2>' + (sharedResult ? '공유받은 결과' : (won ? '정답입니다 🎉' : '아쉬워요')) + '</h2>' +
       answerView +
       '<p style="text-align:center">' +
-        (won ? game.rows.length + '번 만에 맞혔어요' : '5번 안에 못 맞혔어요') +
+        (won ? game.rows.length + '번 만에 맞혔어요' : MAX_TRIES + '번 안에 못 맞혔어요') +
       '</p>' +
       '<div class="grid">' + grid + '</div>' +
       '<div class="score-summary"><b>' + game.score() + '점</b><span>걸린 시간 ' + formatTime(game.elapsedSeconds()) + '</span></div>' +
@@ -462,7 +477,7 @@
     openSheet(
       '<h2>직접 출제</h2>' +
       '<p class="hint">사전에 있는 명사를 넣으면 그 단어로 푸는 링크를 만듭니다.<br>' +
-        '자모 5 ~ 10칸짜리만 낼 수 있어요.</p>' +
+        '자모 ' + LENGTH_RANGE + '칸짜리만 낼 수 있어요.</p>' +
       '<input class="compose-input" id="cw" type="text" placeholder="예: 안녕"' +
         ' autocomplete="off" autocapitalize="off" spellcheck="false" maxlength="12">' +
       '<p class="compose-status" id="cs">한글 명사를 입력하세요</p>' +
@@ -502,7 +517,7 @@
       var jamo = window.Jamo.decompose(w);
       if (!jamo) { setState('ㅙ · ㅞ 가 들어간 단어는 낼 수 없어요', 'bad'); return; }
       if (LENGTHS.indexOf(jamo.length) < 0) {
-        setState('자모 ' + jamo.length + '칸 — 5 ~ 10칸만 됩니다', 'bad');
+        setState('자모 ' + jamo.length + '칸 — ' + LENGTH_RANGE + '칸만 됩니다', 'bad');
         return;
       }
       setState('확인하는 중…', '');
@@ -538,8 +553,8 @@
     openSheet(
       '<h2>규칙</h2>' +
       '<ol>' +
-        '<li>자모 5 ~ 10개 중 하나를 골라 그 길이의 명사를 맞힙니다. 예: 안녕 → ㅇㅏㄴㄴㅕㅇ (6칸)</li>' +
-        '<li>기회는 5번. 추측하는 단어도 사전에 있는 명사여야 합니다.</li>' +
+        '<li>자모 ' + LENGTH_RANGE + '개 중 하나를 골라 그 길이의 명사를 맞힙니다. 예: 안녕 → ㅇㅏㄴㄴㅕㅇ (6칸)</li>' +
+        '<li>기회는 ' + MAX_TRIES + '번. 추측하는 단어도 사전에 있는 명사여야 합니다.</li>' +
         '<li>쌍자음 · 겹받침 · 복합모음은 기본 자모를 이어서 칩니다. ㄲ=ㄱㄱ, ㄺ=ㄹㄱ, ㅐ=ㅏㅣ, ㅘ=ㅗㅏ</li>' +
         '<li>ㅙ · ㅞ 가 들어간 단어는 나오지 않습니다.</li>' +
       '</ol>' +
@@ -594,9 +609,7 @@
    */
   function start(n, word, resultCode, authoredWord) {
     markChips(n);
-    if (!word) {
-      try { localStorage.setItem('wordquiz.length', String(n)); } catch (e) { /* 무시 */ }
-    }
+    if (!word) window.Store.saveLength(n);
     submitBtn.textContent = '사전 불러오는 중…';
     return window.Dict.load(n).then(function (dict) {
       game = new window.Game(dict);
@@ -646,9 +659,8 @@
       toast('링크가 올바르지 않아요');
       clearHash();
     }
-    var saved = 6;
-    try { saved = Number(localStorage.getItem('wordquiz.length')) || 6; } catch (e) { /* 무시 */ }
-    return start(LENGTHS.indexOf(saved) >= 0 ? saved : 6);
+    var saved = window.Store.length();
+    return start(LENGTHS.indexOf(saved) >= 0 ? saved : DEFAULT_LENGTH);
   }
 
   lengths.addEventListener('click', function (e) {
@@ -675,6 +687,7 @@
   window.addEventListener('resize', sizeBoard);
   window.addEventListener('orientationchange', sizeBoard);
 
+  buildLengths();
   buildKeyboard();
   startFromHash();
 })();

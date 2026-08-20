@@ -95,7 +95,11 @@ URL을 설정하지 않으면 게임과 결과 공유만 사용할 수 있습니
 ```bash
 python tools/fetch_krdict.py   # 원본 zip 내려받기 (약 84MB, data/raw/)
 python tools/build_dict.py     # data/words-N.js, answers-N.js 생성
+python tools/check_sync.py     # 규칙이 어긋나지 않았는지 확인
 ```
+
+사전을 다시 만들었다면 `index.html` 의 `APP_VERSION` 도 올려야 브라우저가
+낡은 데이터를 붙들지 않습니다.
 
 | 자모 수 | 추측 허용 | 정답 후보 |
 |---:|---:|---:|
@@ -114,15 +118,36 @@ python tools/build_dict.py     # data/words-N.js, answers-N.js 생성
 ```
 index.html          화면 뼈대
 css/style.css       다크 테마
+js/store.js         localStorage (길이 · 닉네임 · 익명 ID)
 js/jamo.js          한글 ↔ 자판 입력열 변환
-js/dict.js          단어 데이터 로딩 · 검증
+js/dict.js          단어 데이터 로딩 · 검증, 자모 길이 목록
 js/game.js          게임 상태와 채점 (DOM 비의존)
+js/scoreboard.js    Apps Script 스코어보드 클라이언트
 js/ui.js            렌더링과 입력 처리
-tools/              사전 내려받기 · 가공 스크립트
+tests/              브라우저에서 여는 테스트
+tools/              사전 내려받기 · 가공 · 검사 스크립트
 data/               생성된 단어 데이터
 ```
 
-`js/jamo.js` 의 `EXPAND` 와 `tools/build_dict.py` 의 `EXPAND` 는 항상 같아야 합니다.
+같은 규칙이 js 와 python 에 두 벌로 적혀 있습니다. `js/jamo.js` 의 `EXPAND` ·
+`UNSUPPORTED` 는 `tools/build_dict.py` 의 것과, `js/dict.js` 의 `LENGTHS` 는
+`tools/build_dict.py` 의 `LENGTHS` 와 항상 같아야 합니다.
+
+```bash
+python tools/check_sync.py   # 두 벌이 어긋나지 않았는지 검사
+```
+
+## 테스트
+
+의존성 없이 브라우저에서 엽니다.
+
+```bash
+python -m http.server 8000
+# http://localhost:8000/tests/
+```
+
+`js/jamo.js` 와 `js/game.js` 의 순수 로직(자모 분해, 채점, 공유 코드, 판 진행,
+결과 링크 복원)을 검사합니다. DOM 을 만지지 않습니다.
 
 ## 단어 출처
 

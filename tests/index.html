@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>WordQuiz 테스트</title>
+<style>
+  body { margin: 0; padding: 24px; background: #0d0d0f; color: #f2f2f2;
+         font-family: "Apple SD Gothic Neo", system-ui, sans-serif; }
+  h1 { font-size: 20px; margin: 0 0 4px; }
+  #summary { margin: 0 0 20px; font-size: 14px; color: #8e8e93; }
+  #summary.pass b { color: #7ad17f; }
+  #summary.fail b { color: #ff6b6b; }
+  ol { margin: 0; padding-left: 28px; }
+  li { padding: 3px 0; font-size: 14px; line-height: 1.5; }
+  li.ok::marker { color: #7ad17f; }
+  li.no::marker { color: #ff6b6b; }
+  li.no { color: #ff9e9e; }
+  .detail { display: block; font-size: 12px; color: #8e8e93; font-family: ui-monospace, monospace; }
+</style>
+</head>
+<body>
+<h1>WordQuiz 테스트</h1>
+<p id="summary">실행 중…</p>
+<ol id="list"></ol>
+
+<script src="../js/jamo.js"></script>
+<script src="../js/game.js"></script>
+<script src="tests.js"></script>
+<script>
+(function () {
+  var out = window.WordQuizTests.run();
+  var summary = document.getElementById('summary');
+  summary.className = out.failed ? 'fail' : 'pass';
+  summary.innerHTML = '<b>' + (out.failed ? out.failed + '건 실패' : '전부 통과') + '</b>' +
+    ' — ' + out.passed + ' / ' + out.results.length;
+
+  var list = document.getElementById('list');
+  out.results.forEach(function (r) {
+    var li = document.createElement('li');
+    li.className = r.ok ? 'ok' : 'no';
+    li.textContent = r.name;
+    if (!r.ok) {
+      var d = document.createElement('span');
+      d.className = 'detail';
+      d.textContent = '받음 ' + r.got + '  /  기대 ' + r.want;
+      li.appendChild(d);
+    }
+    list.appendChild(li);
+  });
+  document.title = (out.failed ? '✗ ' : '✓ ') + document.title;
+})();
+</script>
+</body>
+</html>
