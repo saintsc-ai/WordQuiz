@@ -27,7 +27,7 @@ PAIRS = [
     ("시트 본문 / 카드", "app-text-body", "app-card-bg"),
     ("작은 주석 / 카드", "app-text-faint", "app-card-bg"),
     ("타일·자판 글자 / 정답 초록", "on-fill", "ok"),
-    ("타일·자판 글자 / 근접 노랑", "on-fill", "warn"),
+    ("타일·자판 글자 / 근접 노랑", "on-warn", "warn"),
     ("타일·자판 글자 / 없음 회색", "on-fill", "absent"),
     ("자판 글자 / 자판키", "app-text", "app-border"),
     ("제출 글자 / 제출 버튼", "app-text-muted", "app-hover-bg"),

@@ -18,6 +18,8 @@
   --warn: #ffd84a;
   --absent: #d3d6da;
   --on-fill: #16161a;
+  /* 노랑만 두 테마가 같은 색이라 그 위 글자색도 테마를 타지 않는다 */
+  --on-warn: #16161a;
   --app-sunken-bg: #121214;
   --app-hover-bg: #2c2c2e;
   --tile-edge: #5a5a5e;
@@ -34,7 +36,7 @@
   --app-text: #1a1a1c;
   --app-text-muted: #5f5f64;
   --ok: #42803d;
-  --warn: #87741f;
+  --warn: #ffd84a;
   --absent: #6b6f71;
   --on-fill: #ffffff;
   --app-sunken-bg: #f4f4f6;
@@ -158,6 +160,7 @@ button { font: inherit; color: inherit; cursor: pointer; }
 }
 .tile.filled { border-color: var(--tile-edge); transform: scale(1.04); }
 .tile.ok, .tile.warn, .tile.off { border-color: transparent; color: var(--on-fill); }
+.tile.warn { color: var(--on-warn); }
 .tile.ok { background: var(--ok); }
 .tile.warn { background: var(--warn); }
 .tile.off { background: var(--absent); }
@@ -211,7 +214,7 @@ button { font: inherit; color: inherit; cursor: pointer; }
 }
 .key:active { filter: brightness(1.3); }
 .key.ok { background: var(--ok); color: var(--on-fill); }
-.key.warn { background: var(--warn); color: var(--on-fill); }
+.key.warn { background: var(--warn); color: var(--on-warn); }
 .key.off { background: var(--absent); color: var(--on-fill); }
 
 .submit {
