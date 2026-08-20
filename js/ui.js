@@ -352,10 +352,12 @@
     var grid = game.rows.map(function (r) {
       return r.marks.map(function (m) { return ICON[m]; }).join('');
     }).join('<br>');
+    var answerView = sharedResult ? '<div class="answer hidden-answer">공유된 결과</div>' :
+      '<div class="answer">' + game.answer + '</div>';
 
     openSheet(
-      '<h2>' + (won ? '정답입니다 🎉' : '아쉬워요') + '</h2>' +
-      '<div class="answer">' + game.answer + '</div>' +
+      '<h2>' + (sharedResult ? '공유받은 결과' : (won ? '정답입니다 🎉' : '아쉬워요')) + '</h2>' +
+      answerView +
       '<p style="text-align:center">' +
         (won ? game.rows.length + '번 만에 맞혔어요' : '5번 안에 못 맞혔어요') +
       '</p>' +
