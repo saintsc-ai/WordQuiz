@@ -44,7 +44,10 @@
     });
   }
 
-  /** kind: daily | overall. 날짜는 서버가 정하므로 params 는 보통 비운다. */
+  /**
+   * kind: daily | overall (기간). params.mode: total | time | score (방식).
+   * 날짜는 서버가 정하므로 date 는 보내지 않는다.
+   */
   function rankings(kind, params) {
     if (!configured()) return Promise.reject(new Error('scoreboard is not configured'));
     var query = new URLSearchParams(params || {});

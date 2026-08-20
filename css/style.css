@@ -370,6 +370,24 @@ button { font: inherit; color: inherit; cursor: pointer; }
   font-weight: 700;
 }
 .rank-tabs button.selected { background: var(--app-text); color: var(--on-fill); }
+
+/* 두 번째 줄(순위 방식)은 기간 탭보다 한 단 낮게 보이도록 작고 옅게 */
+.rank-modes { display: flex; gap: 6px; margin: 0 0 10px; }
+.rank-modes button {
+  flex: 1;
+  padding: 7px 3px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: var(--app-sunken-bg);
+  color: var(--app-text-muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+.rank-modes button.selected {
+  border-color: var(--app-border);
+  background: var(--app-hover-bg);
+  color: var(--app-text);
+}
 .rank-caption { margin: 0 0 8px !important; text-align: center; color: var(--app-text-muted) !important; font-size: 12px !important; }
 .ranking-list { display: flex; flex-direction: column; gap: 6px; }
 .ranking-scroll { max-height: 52dvh; overflow-y: auto; scrollbar-width: none; padding-right: 2px; }

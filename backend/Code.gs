@@ -23,16 +23,28 @@ function json_(value) {
 }
 
 /*
- * 날짜 기준은 서버(스크립트 시간대) 하나로 둔다.
- * 클라이언트가 date 를 보내지 않으면 오늘로 본다. 브라우저 시간대에 따라
- * '오늘 순위'가 어제 것으로 보이던 문제를 막는다.
+ * 순위는 두 축이다.
+ *   기간  action=daily(오늘) | overall(전체)
+ *   방식  mode=total(누적 점수) | time(타임어택) | score(점수어택)
+ *
+ * 날짜 기준은 서버(스크립트 시간대) 하나로 둔다. 클라이언트가 date 를 보내지
+ * 않으면 오늘로 본다. 브라우저 시간대에 따라 '오늘 순위'가 어제 것으로
+ * 보이던 문제를 막는다.
+ *
+ * 응답에 mode 를 되돌려 준다. 화면이 요청한 것과 다르면 스코어보드 쪽 배포가
+ * 오래됐다는 뜻이고, 그러면 엉뚱한 표를 그리지 않고 알려 줄 수 있다.
  */
+var MODES = { total: 1, time: 1, score: 1 };
+
 function doGet(e) {
   var params = (e && e.parameter) || {};
-  var action = params.action || 'daily';
+  var mode = MODES[params.mode] ? params.mode : 'total';
   var rows = readRows_(sheet_());
-  if (action === 'overall') return json_(overall_(rows));
-  return json_(daily_(rows, normalizeDate_(params.date) || today_(), params.length));
+
+  if ((params.action || 'daily') !== 'overall') {
+    rows = daily_(rows, normalizeDate_(params.date) || today_(), params.length);
+  }
+  return json_(rank_(rows, mode));
 }
 
 function doPost(e) {
@@ -98,16 +110,12 @@ function readRows_(sheet) {
   });
 }
 
-/*
- * 오늘 순위. 판마다 새 단어를 받아 몇 번이든 다시 풀 수 있는 게임이라
- * '같은 문제를 누가 잘 풀었나'를 셀 수 없다. 사람별로 오늘 점수를 합산한다.
- */
+/** 오늘 기록만 남긴다. */
 function daily_(rows, date, length) {
-  var filtered = rows.filter(function (row) {
+  return rows.filter(function (row) {
     return (rowDate_(row) === date || row.puzzleDate === date) &&
       (!length || row.jamoLength === Number(length));
   });
-  return totals_(filtered);
 }
 
 function rowDate_(row) {
@@ -136,16 +144,21 @@ function normalizeDate_(value) {
   return match[1] + '-' + ('0' + match[2]).slice(-2) + '-' + ('0' + match[3]).slice(-2);
 }
 
-function overall_(rows) {
-  return totals_(rows);
-}
-
 /*
- * 사람별 합계. clientId 는 익명 식별자라 집계 키로만 쓰고 응답에 싣지 않는다.
- * total 을 함께 내보내 상위 LIMIT 명만 보여 준다는 사실을 화면이 숨기지 않게 한다.
+ * 사람별로 한 줄씩 만든다. clientId 는 익명 식별자라 묶는 키로만 쓰고
+ * 응답에는 싣지 않는다. total 을 함께 내보내 상위 LIMIT 명만 보여 준다는
+ * 사실을 화면이 숨기지 않게 한다.
  */
 var LIMIT = 100;
+var NO_TIME = 1e9;   // 아직 이긴 적이 없으면 맨 뒤로
 
+function rank_(rows, mode) {
+  var made = mode === 'total' ? totals_(rows) : bests_(rows, mode);
+  made.sort(mode === 'total' ? sortTotals_ : (mode === 'time' ? sortTime_ : sortScore_));
+  return { ok: true, mode: mode, total: made.length, rows: made.slice(0, LIMIT) };
+}
+
+/** 누적 점수 — 사람별 합계. */
 function totals_(rows) {
   var totals = {};
   rows.forEach(function (row) {
@@ -160,16 +173,44 @@ function totals_(rows) {
       if (totals[key].bestTime === null || row.elapsedSeconds < totals[key].bestTime) totals[key].bestTime = row.elapsedSeconds;
     }
   });
-  var all = Object.keys(totals).map(function (key) { return totals[key]; }).sort(sortTotals_);
-  return { ok: true, total: all.length, rows: all.slice(0, LIMIT) };
+  return Object.keys(totals).map(function (key) { return totals[key]; });
+}
+
+/*
+ * 타임어택 · 점수어택 — 사람별 '가장 좋은 한 판'.
+ * 진 판은 시간도 점수도 견줄 대상이 아니라 빼고 센다. 그래서 아직 한 번도
+ * 이기지 못한 사람은 이 두 표에 나오지 않는다.
+ */
+function bests_(rows, mode) {
+  var best = {};
+  var better = mode === 'time' ? sortTime_ : sortScore_;
+  rows.forEach(function (row) {
+    if (!row.won) return;
+    var key = row.clientId;
+    var entry = {
+      nickname: row.nickname, score: row.score, elapsedSeconds: row.elapsedSeconds,
+      jamoLength: row.jamoLength, attempts: row.attempts
+    };
+    if (!best[key] || better(entry, best[key]) < 0) best[key] = entry;
+    else if (row.nickname) best[key].nickname = row.nickname;
+  });
+  return Object.keys(best).map(function (key) { return best[key]; });
 }
 
 // 총점 -> 적은 판수 -> 빠른 최고 기록. 같은 점수면 판을 덜 쓴 쪽이 위로 간다.
-var NO_TIME = 1e9;   // 아직 이긴 적이 없으면 맨 뒤로
-
 function sortTotals_(a, b) {
   return b.score - a.score || a.games - b.games ||
     (a.bestTime === null ? NO_TIME : a.bestTime) - (b.bestTime === null ? NO_TIME : b.bestTime);
+}
+
+// 타임어택: 빠른 순. 같은 시간이면 점수가 높은 쪽.
+function sortTime_(a, b) {
+  return a.elapsedSeconds - b.elapsedSeconds || b.score - a.score;
+}
+
+// 점수어택: 높은 순. 같은 점수면 빨리 푼 쪽.
+function sortScore_(a, b) {
+  return b.score - a.score || a.elapsedSeconds - b.elapsedSeconds;
 }
 
 function today_() {

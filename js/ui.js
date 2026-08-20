@@ -252,7 +252,7 @@
     });
   });
   document.getElementById('btn-scoreboard').addEventListener('click', function () {
-    Score.showRanking('daily');
+    Score.showRanking('daily', 'total');
   });
 
   // 같은 탭에 링크를 붙여넣는 경우

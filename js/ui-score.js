@@ -17,46 +17,89 @@
 
   /* 순위 ------------------------------------------------------------------ */
 
+  /*
+   * 순위는 두 축이다. 기간(오늘 / 전체) 과 방식(누적 점수 / 타임어택 / 점수어택).
+   * 방식마다 무엇을 크게 보여 줄지가 달라 primary / detail 을 따로 만든다.
+   */
+  var PERIODS = [
+    { key: 'daily', label: '오늘 순위' },
+    { key: 'overall', label: '전체 순위' }
+  ];
+
+  var MODES = [
+    { key: 'total', label: '누적 점수', caption: '총점 · 승리 / 판수' },
+    { key: 'time', label: '타임어택', caption: '가장 빨리 푼 한 판' },
+    { key: 'score', label: '점수어택', caption: '한 판 최고 점수' }
+  ];
+
+  function modeOf(key) {
+    for (var i = 0; i < MODES.length; i++) if (MODES[i].key === key) return MODES[i];
+    return MODES[0];
+  }
+
   function num(value, suffix) {
     var n = Number(value);
     return isFinite(n) ? n + suffix : '-';
   }
 
-  /*
-   * 정적 파일은 GitHub Pages 가, 스코어보드는 Apps Script 가 따로 배포된다.
-   * 둘의 버전이 어긋나면 응답에 games/wins 가 없을 수 있다. 그 때는 옛 응답대로
-   * 판 하나의 걸린 시간을 보여 준다. 없는 값을 NaN 으로 찍지 않는다.
-   */
-  function rankingRow(row, index) {
-    var detail = row && row.games === undefined ?
-      Share.formatTime(row.elapsedSeconds) :
-      num(row.wins, '승') + ' / ' + num(row.games, '판');
+  function jamo(row) {
+    var n = Number(row.jamoLength);
+    return isFinite(n) ? n + '자모' : '';
+  }
+
+  function rankingRow(row, index, mode) {
+    var primary, detail;
+    if (mode === 'time') {
+      primary = Share.formatTime(row.elapsedSeconds);
+      detail = [jamo(row), num(row.score, '점')].filter(Boolean).join(' · ');
+    } else if (mode === 'score') {
+      primary = num(row.score, '점');
+      detail = [jamo(row), Share.formatTime(row.elapsedSeconds)].filter(Boolean).join(' · ');
+    } else if (row.games === undefined && row.elapsedSeconds !== undefined) {
+      // 스코어보드 배포가 오래돼 합산 이전 형태가 온 경우. 판 하나의 기록으로 읽는다.
+      primary = num(row.score, '점');
+      detail = Share.formatTime(row.elapsedSeconds);
+    } else {
+      primary = num(row.score, '점');
+      detail = num(row.wins, '승') + ' / ' + num(row.games, '판');
+    }
     return '<div class="ranking-row">' +
       '<span class="rank-number">' + (index + 1) + '</span>' +
       '<b>' + Share.escapeHtml(row.nickname) + '</b>' +
-      '<span class="rank-score">' + num(row.score, '점') + '</span>' +
+      '<span class="rank-score">' + primary + '</span>' +
       '<span class="rank-time">' + detail + '</span>' +
     '</div>';
   }
 
-  function rankHeader(kind) {
+  function tabs(items, current, group, label) {
+    return '<div class="' + group + '" role="group" aria-label="' + label + '">' +
+      items.map(function (item) {
+        return '<button type="button" data-' + group + '="' + item.key + '"' +
+          (item.key === current ? ' class="selected"' : '') +
+          ' aria-pressed="' + (item.key === current) + '">' + item.label + '</button>';
+      }).join('') +
+    '</div>';
+  }
+
+  function rankHeader(period, mode) {
     return '<h2>스코어보드</h2>' +
-      '<div class="rank-tabs">' +
-        '<button type="button" class="' + (kind === 'daily' ? 'selected' : '') + '" id="rank-daily">오늘 순위</button>' +
-        '<button type="button" class="' + (kind === 'overall' ? 'selected' : '') + '" id="rank-overall">누적 순위</button>' +
-      '</div>' +
-      '<p class="rank-caption">' +
-        (kind === 'daily' ? '오늘 총점 · 승리 / 판수' : '전체 총점 · 승리 / 판수') +
-      '</p>';
+      tabs(PERIODS, period, 'rank-tabs', '기간') +
+      tabs(MODES, mode, 'rank-modes', '순위 방식') +
+      '<p class="rank-caption">' + modeOf(mode).caption + '</p>';
   }
 
   // 기록이 없으면 안내문만 내보낸다. 호출부는 이 때 목록 엘리먼트를 찾으면 안 된다.
-  function rankingShell(count) {
-    if (!count) return '<p class="empty-rank">아직 등록된 기록이 없어요.</p>';
-    return '<div class="ranking-scroll" id="ranking-scroll">' +
-      '<div class="ranking-list" id="ranking-list"></div>' +
-      '<p class="ranking-loading" id="ranking-loading">더 불러오는 중…</p>' +
-    '</div>';
+  function rankingShell(count, mode) {
+    if (count) {
+      return '<div class="ranking-scroll" id="ranking-scroll">' +
+        '<div class="ranking-list" id="ranking-list"></div>' +
+        '<p class="ranking-loading" id="ranking-loading">더 불러오는 중…</p>' +
+      '</div>';
+    }
+    // 타임어택 · 점수어택은 이긴 판만 센다. 왜 비었는지 알려 준다.
+    return '<p class="empty-rank">' +
+      (mode === 'total' ? '아직 등록된 기록이 없어요.' : '아직 이긴 기록이 없어요.') +
+    '</p>';
   }
 
   // 서버가 상위 N명만 내려줄 때, 잘렸다는 사실을 숨기지 않는다.
@@ -65,8 +108,19 @@
     return '<p class="hint">전체 ' + total + '명 중 상위 ' + shown + '명만 표시합니다.</p>';
   }
 
-  function showRanking(kind) {
-    kind = kind || 'daily';
+  function bindTabs(group, current, onPick) {
+    Array.prototype.forEach.call(Sheet.body().querySelectorAll('[data-' + group + ']'), function (btn) {
+      btn.addEventListener('click', function () {
+        var picked = btn.getAttribute('data-' + group);
+        if (picked !== current) onPick(picked);
+      });
+    });
+  }
+
+  function showRanking(period, mode) {
+    period = period || 'daily';
+    mode = modeOf(mode).key;
+
     Sheet.open('<h2>스코어보드</h2><p class="hint">기록을 불러오는 중…</p>');
     if (!global.WordQuizScoreboard.configured()) {
       Sheet.open(
@@ -76,14 +130,25 @@
       return;
     }
     // date 를 보내지 않는다. '오늘'의 기준은 서버(스크립트 시간대)가 정한다.
-    global.WordQuizScoreboard.rankings(kind).then(function (data) {
+    global.WordQuizScoreboard.rankings(period, { mode: mode }).then(function (data) {
+      // 정적 파일과 Apps Script 는 따로 배포된다. 서버가 mode 를 모르면
+      // 엉뚱한 표를 그리는 대신 그렇다고 말한다.
+      if (mode !== 'total' && (!data || data.mode !== mode)) {
+        Sheet.open(rankHeader(period, mode) +
+          '<p class="hint">스코어보드 서버가 아직 이 순위를 모릅니다.<br>' +
+          'backend/Code.gs 를 다시 배포해 주세요.</p>');
+        bindTabs('rank-tabs', period, function (p) { showRanking(p, mode); });
+        bindTabs('rank-modes', mode, function (m) { showRanking(period, m); });
+        return;
+      }
+
       var rows = (data && data.rows) || [];
-      Sheet.open(rankHeader(kind) + rankingShell(rows.length) +
+      Sheet.open(rankHeader(period, mode) + rankingShell(rows.length, mode) +
                  truncatedNote(rows.length, data && data.total));
 
       // 탭은 기록이 없을 때도 눌러야 하므로 목록보다 먼저 연결한다.
-      document.getElementById('rank-daily').addEventListener('click', function () { showRanking('daily'); });
-      document.getElementById('rank-overall').addEventListener('click', function () { showRanking('overall'); });
+      bindTabs('rank-tabs', period, function (p) { showRanking(p, mode); });
+      bindTabs('rank-modes', mode, function (m) { showRanking(period, m); });
       if (!rows.length) return;
 
       var list = document.getElementById('ranking-list');
@@ -93,7 +158,7 @@
       function appendRankings() {
         var next = rows.slice(offset, offset + PAGE_SIZE);
         next.forEach(function (row, index) {
-          list.insertAdjacentHTML('beforeend', rankingRow(row, offset + index));
+          list.insertAdjacentHTML('beforeend', rankingRow(row, offset + index, mode));
         });
         offset += next.length;
         loading.hidden = offset >= rows.length;
@@ -170,7 +235,7 @@
     });
 
     document.getElementById('act-ranking').addEventListener('click', function () {
-      showRanking('daily');
+      showRanking('daily', 'total');
     });
 
     document.getElementById('act-score').addEventListener('click', function () {
