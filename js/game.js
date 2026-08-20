@@ -67,6 +67,8 @@
     this.current = '';     // 입력 중인 자모열
     this.keyState = {};    // 자모 -> ok|warn|off (좋은 쪽이 이긴다)
     this.status = 'play';  // play | win | lose
+    this.startedAt = Date.now();
+    this.finishedAt = null;
     return true;
   };
 
@@ -105,7 +107,19 @@
     this.current = '';
     if (won) this.status = 'win';
     else if (this.rows.length >= MAX_TRIES) this.status = 'lose';
+    if (this.status !== 'play') this.finishedAt = Date.now();
     return { ok: true, marks: marks };
+  };
+
+  /** 성공 점수. 빠른 성공일수록 회수 보너스가 커진다. */
+  Game.prototype.score = function () {
+    if (this.status !== 'win') return 0;
+    return this.length * (MAX_TRIES + 1 - this.rows.length);
+  };
+
+  Game.prototype.elapsedSeconds = function () {
+    var end = this.finishedAt || Date.now();
+    return Math.max(0, Math.round((end - this.startedAt) / 1000));
   };
 
   /** 결과 공유용 이모지 격자. */
@@ -146,7 +160,8 @@
     var payload = {
       answer: this.answer,
       status: this.status,
-      rows: this.rows
+      rows: this.rows,
+      elapsedSeconds: this.elapsedSeconds()
     };
     return encode(JSON.stringify(payload));
   };
@@ -173,6 +188,8 @@
     this.rows = payload.rows;
     this.current = '';
     this.status = payload.status;
+    this.finishedAt = Date.now();
+    this.startedAt = this.finishedAt - (Number(payload.elapsedSeconds) || 0) * 1000;
     this.keyState = {};
     this.rows.forEach(function (row) {
       row.marks.forEach(function (mark, index) {

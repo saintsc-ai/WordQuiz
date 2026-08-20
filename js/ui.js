@@ -32,6 +32,7 @@
   var sheetBody = document.getElementById('sheet-body');
   var lengths = document.getElementById('lengths');
   var titleEl = document.getElementById('title');
+  var scoreboardBtn = document.getElementById('btn-scoreboard');
 
   var game = null;
   var locked = false;   // 뒤집기 애니메이션 동안 입력을 막는다
@@ -283,6 +284,64 @@
     });
   }
 
+  function escapeHtml(value) {
+    return String(value).replace(/[&<>"']/g, function (ch) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch];
+    });
+  }
+
+  function dateKey() {
+    var now = new Date();
+    var month = String(now.getMonth() + 1).padStart(2, '0');
+    var day = String(now.getDate()).padStart(2, '0');
+    return now.getFullYear() + '-' + month + '-' + day;
+  }
+
+  function formatTime(seconds) {
+    var n = Number(seconds) || 0;
+    return Math.floor(n / 60) + ':' + String(n % 60).padStart(2, '0');
+  }
+
+  function rankingRows(rows, overall) {
+    if (!rows || !rows.length) return '<p class="empty-rank">아직 등록된 기록이 없어요.</p>';
+    return '<div class="ranking-list">' + rows.map(function (row, index) {
+      return '<div class="ranking-row">' +
+        '<span class="rank-number">' + (index + 1) + '</span>' +
+        '<b>' + escapeHtml(row.nickname) + '</b>' +
+        '<span class="rank-score">' + row.score + '점</span>' +
+        '<span class="rank-time">' + (overall ? row.wins + '승 / ' + row.games + '판' : formatTime(row.elapsedSeconds)) + '</span>' +
+      '</div>';
+    }).join('') + '</div>';
+  }
+
+  function showScoreboard(kind) {
+    kind = kind || 'daily';
+    openSheet('<h2>스코어보드</h2><p class="hint">기록을 불러오는 중…</p>');
+    if (!window.WordQuizScoreboard.configured()) {
+      openSheet(
+        '<h2>스코어보드</h2>' +
+        '<p class="hint">Google Sheets 연결이 아직 설정되지 않았어요.<br>게임 결과는 계속 플레이할 수 있습니다.</p>'
+      );
+      return;
+    }
+    var params = kind === 'daily' ? { date: dateKey(), length: game ? game.length : '' } : {};
+    window.WordQuizScoreboard.rankings(kind, params).then(function (data) {
+      openSheet(
+        '<h2>스코어보드</h2>' +
+        '<div class="rank-tabs">' +
+          '<button type="button" class="' + (kind === 'daily' ? 'selected' : '') + '" id="rank-daily">오늘의 단어</button>' +
+          '<button type="button" class="' + (kind === 'overall' ? 'selected' : '') + '" id="rank-overall">누적 순위</button>' +
+        '</div>' +
+        '<p class="rank-caption">' + (kind === 'daily' ? game.length + '자모 · 점수 / 시간' : '총점 · 승리 / 플레이') + '</p>' +
+        rankingRows(data.rows, kind === 'overall')
+      );
+      document.getElementById('rank-daily').addEventListener('click', function () { showScoreboard('daily'); });
+      document.getElementById('rank-overall').addEventListener('click', function () { showScoreboard('overall'); });
+    }).catch(function () {
+      openSheet('<h2>스코어보드</h2><p class="hint">순위를 불러오지 못했어요.<br>잠시 후 다시 시도해 주세요.</p>');
+    });
+  }
+
   /* 결과 ------------------------------------------------------------------ */
 
   var ICON = { ok: '🟩', warn: '🟨', off: '⬜' };
@@ -300,11 +359,18 @@
         (won ? game.rows.length + '번 만에 맞혔어요' : '5번 안에 못 맞혔어요') +
       '</p>' +
       '<div class="grid">' + grid + '</div>' +
+      '<div class="score-summary"><b>' + game.score() + '점</b><span>걸린 시간 ' + formatTime(game.elapsedSeconds()) + '</span></div>' +
+      '<div class="score-submit">' +
+        '<input id="score-name" type="text" maxlength="20" placeholder="닉네임" value="' + escapeHtml(window.WordQuizScoreboard.nickname()) + '">' +
+        '<button type="button" id="act-score"' + (sharedResult ? ' disabled' : '') + '>점수 등록</button>' +
+        '<p id="score-status">' + (sharedResult ? '공유받은 기록은 등록할 수 없어요.' : '') + '</p>' +
+      '</div>' +
       '<p class="hint">결과 링크를 보내면 친구가 <b>내 기록</b>을 바로 볼 수 있어요.<br>' +
         '정답은 링크에 그대로 드러나지 않습니다.</p>' +
       '<div class="sheet-actions">' +
         '<button type="button" id="act-link">링크 복사</button>' +
         '<button type="button" id="act-share">결과 링크 공유</button>' +
+        '<button type="button" id="act-ranking">순위 보기</button>' +
         '<button type="button" class="primary" id="act-again">한 판 더</button>' +
       '</div>'
     );
@@ -325,6 +391,38 @@
       } else {
         copyThen(text, '결과와 링크를 복사했어요');
       }
+    });
+
+    document.getElementById('act-ranking').addEventListener('click', function () {
+      showScoreboard('daily');
+    });
+
+    document.getElementById('act-score').addEventListener('click', function () {
+      var name = document.getElementById('score-name').value.trim();
+      var status = document.getElementById('score-status');
+      if (!name) { status.textContent = '닉네임을 입력해 주세요.'; return; }
+      if (!window.WordQuizScoreboard.configured()) {
+        status.textContent = '스코어보드 연결이 아직 설정되지 않았어요.';
+        return;
+      }
+      var button = document.getElementById('act-score');
+      button.disabled = true;
+      status.textContent = '등록하는 중…';
+      window.WordQuizScoreboard.submit({
+        nickname: name,
+        puzzleId: game.code(),
+        puzzleDate: dateKey(),
+        jamoLength: game.length,
+        attempts: game.rows.length,
+        score: game.score(),
+        elapsedSeconds: game.elapsedSeconds(),
+        won: game.status === 'win'
+      }).then(function (data) {
+        status.textContent = data.duplicate ? '이미 등록한 기록이에요.' : '점수가 등록됐어요.';
+      }).catch(function () {
+        button.disabled = false;
+        status.textContent = '등록하지 못했어요.';
+      });
     });
   }
 
@@ -534,6 +632,7 @@
   });
   document.getElementById('btn-compose').addEventListener('click', showCompose);
   document.getElementById('btn-help').addEventListener('click', showHelp);
+  scoreboardBtn.addEventListener('click', function () { showScoreboard('daily'); });
 
   // 같은 탭에 링크를 붙여넣는 경우
   window.addEventListener('hashchange', function () {

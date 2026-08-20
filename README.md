@@ -81,6 +81,12 @@ python -m http.server 8000
 `index.html` 을 브라우저에서 직접 열어도 동작합니다. (데이터를 `fetch` 가 아니라
 `<script>` 주입으로 읽기 때문)
 
+### 스코어보드 연결
+
+스코어보드는 Google Sheets와 Google Apps Script Web App을 선택적으로 연결할 수
+있습니다. 자세한 설정은 [SCOREBOARD_SETUP.md](SCOREBOARD_SETUP.md)를 보세요.
+URL을 설정하지 않으면 게임과 결과 공유만 사용할 수 있습니다.
+
 ## 단어 데이터 다시 만들기
 
 `data/*.js` 는 이미 커밋되어 있으므로 평소에는 실행할 필요가 없습니다.
