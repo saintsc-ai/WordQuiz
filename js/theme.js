@@ -14,6 +14,7 @@
   var KEY = 'wordquiz.theme';
   var MODES = ['system', 'light', 'dark'];
   var LABELS = { system: '시스템', light: '밝게', dark: '어둡게' };
+  var ICONS = { system: '◐', light: '☀', dark: '☾' };
   var BAR = { light: '#e8e8ec', dark: '#0d0d0f' };   // 모바일 주소창 색
 
   var query = global.matchMedia ? global.matchMedia('(prefers-color-scheme: light)') : null;
@@ -59,9 +60,16 @@
 
   apply();
 
+  /** 머리말 버튼용. 시스템 -> 밝게 -> 어둡게 -> 시스템 순으로 돈다. */
+  function next() {
+    set(MODES[(MODES.indexOf(mode) + 1) % MODES.length]);
+  }
+
   global.Theme = {
     MODES: MODES,
     LABELS: LABELS,
+    ICONS: ICONS,
+    next: next,
     mode: function () { return mode; },
     resolved: function () { return resolve(mode); },
     set: set,

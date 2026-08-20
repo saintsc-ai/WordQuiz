@@ -232,9 +232,19 @@
   document.getElementById('btn-new').addEventListener('click', function () {
     if (game && !locked) newGame();
   });
-  document.getElementById('btn-compose').addEventListener('click', function () {
-    Compose.show(playWord);
-  });
+  // 직접 출제는 ⋯ 시트 안에 그대로 있다. 머리말 자리는 테마가 쓴다.
+  var themeBtn = document.getElementById('btn-theme');
+
+  function paintTheme(mode, resolved) {
+    themeBtn.textContent = global.Theme.ICONS[mode];
+    themeBtn.setAttribute('aria-label', '화면 테마: ' + global.Theme.LABELS[mode] +
+      (mode === 'system' ? ' (지금 ' + global.Theme.LABELS[resolved] + ')' : '') + '. 눌러서 바꾸기');
+  }
+
+  // theme.js 는 이 파일보다 먼저 돌기 때문에 첫 그리기는 직접 한다.
+  global.Theme.onChange(paintTheme);
+  paintTheme(global.Theme.mode(), global.Theme.resolved());
+  themeBtn.addEventListener('click', global.Theme.next);
   document.getElementById('btn-help').addEventListener('click', function () {
     Compose.showHelp({
       play: playWord,
