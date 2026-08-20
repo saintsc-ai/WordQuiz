@@ -303,16 +303,21 @@
     return Math.floor(n / 60) + ':' + String(n % 60).padStart(2, '0');
   }
 
-  function rankingRows(rows, overall) {
+  function rankingRow(row, index, overall) {
+    return '<div class="ranking-row">' +
+      '<span class="rank-number">' + (index + 1) + '</span>' +
+      '<b>' + escapeHtml(row.nickname) + '</b>' +
+      '<span class="rank-score">' + row.score + '점</span>' +
+      '<span class="rank-time">' + (overall ? row.wins + '승 / ' + row.games + '판' : formatTime(row.elapsedSeconds)) + '</span>' +
+    '</div>';
+  }
+
+  function rankingRows(rows) {
     if (!rows || !rows.length) return '<p class="empty-rank">아직 등록된 기록이 없어요.</p>';
-    return '<div class="ranking-list">' + rows.map(function (row, index) {
-      return '<div class="ranking-row">' +
-        '<span class="rank-number">' + (index + 1) + '</span>' +
-        '<b>' + escapeHtml(row.nickname) + '</b>' +
-        '<span class="rank-score">' + row.score + '점</span>' +
-        '<span class="rank-time">' + (overall ? row.wins + '승 / ' + row.games + '판' : formatTime(row.elapsedSeconds)) + '</span>' +
-      '</div>';
-    }).join('') + '</div>';
+    return '<div class="ranking-scroll" id="ranking-scroll">' +
+      '<div class="ranking-list" id="ranking-list"></div>' +
+      '<p class="ranking-loading" id="ranking-loading">더 불러오는 중…</p>' +
+    '</div>';
   }
 
   function showScoreboard(kind) {
@@ -334,8 +339,25 @@
           '<button type="button" class="' + (kind === 'overall' ? 'selected' : '') + '" id="rank-overall">누적 순위</button>' +
         '</div>' +
         '<p class="rank-caption">' + (kind === 'daily' ? '전체 자모 · 점수 / 시간' : '총점 · 승리 / 플레이') + '</p>' +
-        rankingRows(data.rows, kind === 'overall')
+        rankingRows(data.rows)
       );
+      var list = document.getElementById('ranking-list');
+      var scroll = document.getElementById('ranking-scroll');
+      var loading = document.getElementById('ranking-loading');
+      var offset = 0;
+      var pageSize = 10;
+      function appendRankings() {
+        var next = data.rows.slice(offset, offset + pageSize);
+        next.forEach(function (row, index) {
+          list.insertAdjacentHTML('beforeend', rankingRow(row, offset + index, kind === 'overall'));
+        });
+        offset += next.length;
+        loading.hidden = offset >= data.rows.length;
+      }
+      appendRankings();
+      scroll.addEventListener('scroll', function () {
+        if (scroll.scrollTop + scroll.clientHeight >= scroll.scrollHeight - 40) appendRankings();
+      });
       document.getElementById('rank-daily').addEventListener('click', function () { showScoreboard('daily'); });
       document.getElementById('rank-overall').addEventListener('click', function () { showScoreboard('overall'); });
     }).catch(function () {
