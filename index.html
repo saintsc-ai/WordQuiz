@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1">
 <meta name="theme-color" content="#0d0d0f">
 <title>한글 워들 — 오늘의 단어</title>
-<link rel="stylesheet" href="css/style.css">
+<link rel="stylesheet" href="css/style.css?v=20260820">
 </head>
 <body>
 <div class="app">
@@ -51,10 +51,15 @@
   </div>
 </div>
 
-<script src="js/jamo.js"></script>
-<script src="js/dict.js"></script>
-<script src="js/game.js"></script>
-<script src="js/scoreboard.js"></script>
-<script src="js/ui.js?v=10jamo"></script>
+<!--
+  캐시 무효화. 아래 ?v= 값은 전부 같아야 하며, js/dict.js 가 data/*.js 에 붙이는
+  값도 APP_VERSION 을 통해 여기서 온다. 배포할 때 한 번에 올린다.
+-->
+<script>window.APP_VERSION = '20260820';</script>
+<script src="js/jamo.js?v=20260820"></script>
+<script src="js/dict.js?v=20260820"></script>
+<script src="js/game.js?v=20260820"></script>
+<script src="js/scoreboard.js?v=20260820"></script>
+<script src="js/ui.js?v=20260820"></script>
 </body>
 </html>

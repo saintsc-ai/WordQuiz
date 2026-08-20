@@ -12,6 +12,11 @@
 
   var cache = {};
 
+  /** index.html 의 ?v= 와 같은 값을 붙인다. 사전만 낡은 채로 남는 일을 막는다. */
+  function url(path) {
+    return global.APP_VERSION ? path + '?v=' + global.APP_VERSION : path;
+  }
+
   function loadScript(src) {
     return new Promise(function (resolve, reject) {
       var el = document.createElement('script');
@@ -22,19 +27,27 @@
     });
   }
 
-  /** 자모 길이 n 에 해당하는 사전을 준비한다. */
+  /**
+   * 자모 길이 n 에 해당하는 사전을 준비한다.
+   * 실패한 Promise 는 캐시에서 지운다. 남겨 두면 통신이 한 번 끊긴 뒤로는
+   * 새로고침 전까지 그 길이를 영영 못 불러온다.
+   */
   function load(n) {
     if (cache[n]) return cache[n];
-    cache[n] = Promise.all([
-      loadScript('data/words-' + n + '.js'),
-      loadScript('data/answers-' + n + '.js')
+    var pending = Promise.all([
+      loadScript(url('data/words-' + n + '.js')),
+      loadScript(url('data/answers-' + n + '.js'))
     ]).then(function () {
       var blob = global.WORDS[n];
       var valid = new Set();
       for (var i = 0; i < blob.length; i += n) valid.add(blob.substr(i, n));
       return { length: n, valid: valid, answers: global.ANSWERS[n] };
     });
-    return cache[n];
+    pending.catch(function () {
+      if (cache[n] === pending) delete cache[n];
+    });
+    cache[n] = pending;
+    return pending;
   }
 
   global.Dict = { load: load };

@@ -5,7 +5,7 @@
   'use strict';
 
   // Paste the deployed Apps Script Web App URL here.
-  var API_URL = 'https://script.google.com/macros/s/AKfycbxYRX0-Ghv-UFV-8BhLr1WtjI1fOdMLCR21l3fnqshx8iJHQ0IzpCOeRJgm78kOISPumA/exec';
+  var API_URL = 'https://script.google.com/macros/s/AKfycbwK062u-OG6a6RGz8ZM8lSFU-q_L_sOqKrwtiijpK81gAPupMSS0DhEVcxNyGQ7ZQj3cw/exec';
   var PLAYER_KEY = 'wordquiz.player';
   var NAME_KEY = 'wordquiz.nickname';
 
@@ -48,7 +48,6 @@
       clientId: playerId(),
       nickname: saveNickname(result.nickname),
       puzzleId: result.puzzleId,
-      puzzleDate: result.puzzleDate,
       jamoLength: result.jamoLength,
       attempts: result.attempts,
       score: result.score,
@@ -62,6 +61,7 @@
     });
   }
 
+  /** kind: daily | overall. 날짜는 서버가 정하므로 params 는 보통 비운다. */
   function rankings(kind, params) {
     if (!configured()) return Promise.reject(new Error('scoreboard is not configured'));
     var query = new URLSearchParams(params || {});

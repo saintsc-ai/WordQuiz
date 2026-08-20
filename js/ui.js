@@ -198,7 +198,11 @@
   }
 
   document.addEventListener('keydown', function (e) {
-    if (!game || !sheet.hidden) return;
+    if (!sheet.hidden) {
+      if (e.key === 'Escape') { e.preventDefault(); closeSheet(); }
+      return;   // 시트가 열려 있는 동안에는 보드 입력을 받지 않는다
+    }
+    if (!game) return;
     if (e.key === 'Backspace') { e.preventDefault(); onBack(); return; }
     if (e.key === 'Enter') { e.preventDefault(); onSubmit(); return; }
     var k = QWERTY[e.key.toLowerCase()];
@@ -291,13 +295,6 @@
     });
   }
 
-  function dateKey() {
-    var now = new Date();
-    var month = String(now.getMonth() + 1).padStart(2, '0');
-    var day = String(now.getDate()).padStart(2, '0');
-    return now.getFullYear() + '-' + month + '-' + day;
-  }
-
   function formatTime(seconds) {
     var n = Number(seconds) || 0;
     return Math.floor(n / 60) + ':' + String(n % 60).padStart(2, '0');
@@ -312,8 +309,18 @@
     '</div>';
   }
 
-  function rankingRows(rows) {
-    if (!rows || !rows.length) return '<p class="empty-rank">아직 등록된 기록이 없어요.</p>';
+  function rankHeader(kind) {
+    return '<h2>스코어보드</h2>' +
+      '<div class="rank-tabs">' +
+        '<button type="button" class="' + (kind === 'daily' ? 'selected' : '') + '" id="rank-daily">오늘 순위</button>' +
+        '<button type="button" class="' + (kind === 'overall' ? 'selected' : '') + '" id="rank-overall">누적 순위</button>' +
+      '</div>' +
+      '<p class="rank-caption">' + (kind === 'daily' ? '전체 자모 · 점수 / 시간' : '총점 · 승리 / 플레이') + '</p>';
+  }
+
+  // 기록이 없으면 안내문만 내보낸다. 호출부는 이 때 목록 엘리먼트를 찾으면 안 된다.
+  function rankingShell(count) {
+    if (!count) return '<p class="empty-rank">아직 등록된 기록이 없어요.</p>';
     return '<div class="ranking-scroll" id="ranking-scroll">' +
       '<div class="ranking-list" id="ranking-list"></div>' +
       '<p class="ranking-loading" id="ranking-loading">더 불러오는 중…</p>' +
@@ -330,37 +337,35 @@
       );
       return;
     }
-    var params = kind === 'daily' ? { date: dateKey() } : {};
-    window.WordQuizScoreboard.rankings(kind, params).then(function (data) {
-      openSheet(
-        '<h2>스코어보드</h2>' +
-        '<div class="rank-tabs">' +
-          '<button type="button" class="' + (kind === 'daily' ? 'selected' : '') + '" id="rank-daily">오늘 순위</button>' +
-          '<button type="button" class="' + (kind === 'overall' ? 'selected' : '') + '" id="rank-overall">누적 순위</button>' +
-        '</div>' +
-        '<p class="rank-caption">' + (kind === 'daily' ? '전체 자모 · 점수 / 시간' : '총점 · 승리 / 플레이') + '</p>' +
-        rankingRows(data.rows)
-      );
+    // date 를 보내지 않는다. '오늘'의 기준은 서버(스크립트 시간대)가 정한다.
+    window.WordQuizScoreboard.rankings(kind).then(function (data) {
+      var rows = (data && data.rows) || [];
+      openSheet(rankHeader(kind) + rankingShell(rows.length));
+
+      // 탭은 기록이 없을 때도 눌러야 하므로 목록보다 먼저 연결한다.
+      document.getElementById('rank-daily').addEventListener('click', function () { showScoreboard('daily'); });
+      document.getElementById('rank-overall').addEventListener('click', function () { showScoreboard('overall'); });
+      if (!rows.length) return;
+
       var list = document.getElementById('ranking-list');
       var scroll = document.getElementById('ranking-scroll');
       var loading = document.getElementById('ranking-loading');
       var offset = 0;
       var pageSize = 10;
       function appendRankings() {
-        var next = data.rows.slice(offset, offset + pageSize);
+        var next = rows.slice(offset, offset + pageSize);
         next.forEach(function (row, index) {
           list.insertAdjacentHTML('beforeend', rankingRow(row, offset + index, kind === 'overall'));
         });
         offset += next.length;
-        loading.hidden = offset >= data.rows.length;
+        loading.hidden = offset >= rows.length;
       }
       appendRankings();
       scroll.addEventListener('scroll', function () {
         if (scroll.scrollTop + scroll.clientHeight >= scroll.scrollHeight - 40) appendRankings();
       });
-      document.getElementById('rank-daily').addEventListener('click', function () { showScoreboard('daily'); });
-      document.getElementById('rank-overall').addEventListener('click', function () { showScoreboard('overall'); });
-    }).catch(function () {
+    }, function () {
+      // 통신 실패만 여기로 온다. 위 렌더링에서 난 예외는 삼키지 않는다.
       openSheet('<h2>스코어보드</h2><p class="hint">순위를 불러오지 못했어요.<br>잠시 후 다시 시도해 주세요.</p>');
     });
   }
@@ -437,7 +442,6 @@
       window.WordQuizScoreboard.submit({
         nickname: name,
         puzzleId: game.code(),
-        puzzleDate: dateKey(),
         jamoLength: game.length,
         attempts: game.rows.length,
         score: game.score(),

@@ -5,6 +5,10 @@ var HEADERS = [
   'jamoLength', 'attempts', 'score', 'elapsedSeconds', 'won'
 ];
 
+// 중복 검사에 필요한 열만 읽기 위한 위치. HEADERS 와 순서가 같아야 한다.
+var COL_CLIENT_ID = 2;   // clientId · nickname · puzzleId · puzzleDate 4칸
+var DUP_COLS = 4;
+
 function sheet_() {
   var book = SpreadsheetApp.openById(SPREADSHEET_ID);
   var sheet = book.getSheetByName(SHEET_NAME);
@@ -18,12 +22,17 @@ function json_(value) {
     .setMimeType(ContentService.MimeType.JSON);
 }
 
+/*
+ * 날짜 기준은 서버(스크립트 시간대) 하나로 둔다.
+ * 클라이언트가 date 를 보내지 않으면 오늘로 본다. 브라우저 시간대에 따라
+ * '오늘 순위'가 어제 것으로 보이던 문제를 막는다.
+ */
 function doGet(e) {
-  var action = e.parameter.action || 'daily';
-  var sheet = sheet_();
-  var rows = readRows_(sheet);
+  var params = (e && e.parameter) || {};
+  var action = params.action || 'daily';
+  var rows = readRows_(sheet_());
   if (action === 'overall') return json_(overall_(rows));
-  return json_(daily_(rows, e.parameter.date || today_(), e.parameter.length));
+  return json_(daily_(rows, normalizeDate_(params.date) || today_(), params.length));
 }
 
 function doPost(e) {
@@ -31,23 +40,49 @@ function doPost(e) {
   try { data = JSON.parse(e.postData.contents); } catch (err) { return json_({ ok: false, error: 'invalid_json' }); }
   if (data.action !== 'submit') return json_({ ok: false, error: 'invalid_action' });
   if (!data.clientId || !data.nickname || !data.puzzleId) return json_({ ok: false, error: 'missing_fields' });
-  var sheet = sheet_();
-  var rows = readRows_(sheet);
-  var duplicate = rows.some(function (row) {
-    return row.clientId === String(data.clientId) && row.puzzleId === String(data.puzzleId);
-  });
-  if (duplicate) return json_({ ok: true, duplicate: true });
 
-  var score = Math.max(0, Number(data.score) || 0);
-  var attempts = Math.max(0, Math.min(5, Number(data.attempts) || 0));
-  var length = Math.max(5, Math.min(10, Number(data.jamoLength) || 0));
-  var elapsed = Math.max(0, Number(data.elapsedSeconds) || 0);
-  sheet.appendRow([
-    new Date(), String(data.clientId), String(data.nickname).trim().slice(0, 20),
-    String(data.puzzleId), String(data.puzzleDate || today_()), length,
-    attempts, score, elapsed, Boolean(data.won)
-  ]);
-  return json_({ ok: true, duplicate: false });
+  // 중복 검사와 기록 사이에 다른 요청이 끼어들면 같은 판이 두 번 들어간다.
+  var lock = LockService.getScriptLock();
+  try { lock.waitLock(20000); } catch (err) { return json_({ ok: false, error: 'busy' }); }
+
+  try {
+    var sheet = sheet_();
+    var clientId = String(data.clientId);
+    var puzzleId = String(data.puzzleId);
+    var puzzleDate = today_();   // 제출 날짜도 서버가 찍는다
+
+    if (isDuplicate_(sheet, clientId, puzzleId, puzzleDate)) return json_({ ok: true, duplicate: true });
+
+    sheet.appendRow([
+      new Date(), clientId, String(data.nickname).trim().slice(0, 20),
+      puzzleId, puzzleDate,
+      Math.max(5, Math.min(10, Number(data.jamoLength) || 0)),
+      Math.max(0, Math.min(5, Number(data.attempts) || 0)),
+      Math.max(0, Number(data.score) || 0),
+      Math.max(0, Number(data.elapsedSeconds) || 0),
+      Boolean(data.won)
+    ]);
+    return json_({ ok: true, duplicate: false });
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+/*
+ * 같은 브라우저가 같은 문제를 같은 날 두 번 등록하는 것만 막는다.
+ * puzzleId 는 정답 단어에서 나오므로 날짜를 빼면, 그 단어가 다시 뽑힌 날
+ * 정상적인 등록까지 거부된다.
+ */
+function isDuplicate_(sheet, clientId, puzzleId, puzzleDate) {
+  var last = sheet.getLastRow();
+  if (last < 2) return false;
+  var values = sheet.getRange(2, COL_CLIENT_ID, last - 1, DUP_COLS).getValues();
+  for (var i = 0; i < values.length; i++) {
+    if (String(values[i][0]) === clientId &&
+        String(values[i][2]) === puzzleId &&
+        normalizeDate_(values[i][3]) === puzzleDate) return true;
+  }
+  return false;
 }
 
 function readRows_(sheet) {
@@ -56,7 +91,7 @@ function readRows_(sheet) {
   return values.slice(1).map(function (row) {
     return {
       createdAt: row[0], clientId: String(row[1]), nickname: String(row[2]),
-      puzzleId: String(row[3]), puzzleDate: String(row[4]), jamoLength: Number(row[5]),
+      puzzleId: String(row[3]), puzzleDate: normalizeDate_(row[4]), jamoLength: Number(row[5]),
       attempts: Number(row[6]), score: Number(row[7]), elapsedSeconds: Number(row[8]),
       won: row[9] === true || String(row[9]) === 'true'
     };
@@ -65,7 +100,7 @@ function readRows_(sheet) {
 
 function daily_(rows, date, length) {
   var filtered = rows.filter(function (row) {
-    return (rowDate_(row) === date || normalizeDate_(row.puzzleDate) === date) &&
+    return (rowDate_(row) === date || row.puzzleDate === date) &&
       (!length || row.jamoLength === Number(length));
   });
   return { ok: true, rows: filtered.sort(sortScore_).slice(0, 100).map(publicRow_) };
@@ -81,10 +116,18 @@ function rowDate_(row) {
   return row.puzzleDate;
 }
 
+/*
+ * yyyy-MM-dd 로 맞춘다. 시트가 날짜 문자열을 Date 로 바꿔 저장해 둔 칸이 있어
+ * Date 를 먼저 걸러야 한다. String(Date) 를 정규식에 넣으면 2026-00-00 이 나온다.
+ */
 function normalizeDate_(value) {
   if (!value) return '';
-  var text = String(value);
-  var match = text.match(/(20\d{2})\D(\d{1,2})\D(\d{1,2})/);
+  if (value instanceof Date) {
+    return isNaN(value.getTime()) ? '' :
+      Utilities.formatDate(value, Session.getScriptTimeZone(), 'yyyy-MM-dd');
+  }
+  var text = String(value).trim();
+  var match = text.match(/(20\d{2})\D+(\d{1,2})\D+(\d{1,2})/);
   if (!match) return text.slice(0, 10);
   return match[1] + '-' + ('0' + match[2]).slice(-2) + '-' + ('0' + match[3]).slice(-2);
 }
@@ -93,7 +136,9 @@ function overall_(rows) {
   var totals = {};
   rows.forEach(function (row) {
     var key = row.clientId;
-    if (!totals[key]) totals[key] = { clientId: key, nickname: row.nickname, score: 0, games: 0, wins: 0, bestTime: null };
+    if (!totals[key]) totals[key] = { nickname: row.nickname, score: 0, games: 0, wins: 0, bestTime: null };
+    // 닉네임을 바꾸면 최근 것을 따라간다. 행은 기록된 순서대로 들어 있다.
+    if (row.nickname) totals[key].nickname = row.nickname;
     totals[key].score += row.score;
     totals[key].games++;
     if (row.won) {
@@ -101,6 +146,7 @@ function overall_(rows) {
       if (totals[key].bestTime === null || row.elapsedSeconds < totals[key].bestTime) totals[key].bestTime = row.elapsedSeconds;
     }
   });
+  // clientId 는 익명 식별자라 응답에 싣지 않는다. 집계 키로만 쓴다.
   return { ok: true, rows: Object.keys(totals).map(function (key) { return totals[key]; }).sort(function (a, b) { return b.score - a.score; }).slice(0, 100) };
 }
 
