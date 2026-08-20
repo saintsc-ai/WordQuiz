@@ -6,8 +6,8 @@ var HEADERS = [
 ];
 
 // 중복 검사에 필요한 열만 읽기 위한 위치. HEADERS 와 순서가 같아야 한다.
-var COL_CLIENT_ID = 2;   // clientId · nickname · puzzleId · puzzleDate 4칸
-var DUP_COLS = 4;
+var COL_CLIENT_ID = 2;   // clientId · nickname · puzzleId 3칸
+var DUP_COLS = 3;
 
 function sheet_() {
   var book = SpreadsheetApp.openById(SPREADSHEET_ID);
@@ -63,7 +63,7 @@ function doPost(e) {
     var puzzleId = String(data.puzzleId);
     var puzzleDate = today_();   // 제출 날짜도 서버가 찍는다
 
-    if (isDuplicate_(sheet, clientId, puzzleId, puzzleDate)) return json_({ ok: true, duplicate: true });
+    if (isDuplicate_(sheet, clientId, puzzleId)) return json_({ ok: true, duplicate: true });
 
     sheet.appendRow([
       new Date(), clientId, String(data.nickname).trim().slice(0, 20),
@@ -81,18 +81,23 @@ function doPost(e) {
 }
 
 /*
- * 같은 브라우저가 같은 문제를 같은 날 두 번 등록하는 것만 막는다.
- * puzzleId 는 정답 단어에서 나오므로 날짜를 빼면, 그 단어가 다시 뽑힌 날
- * 정상적인 등록까지 거부된다.
+ * 같은 브라우저가 같은 단어를 두 번 등록하는 것을 막는다. 날짜는 보지 않는다.
+ *
+ * puzzleId 는 정답 단어에서 나온다. 한 번 등록한 단어를 다시 푸는 길은 결과
+ * 화면의 링크를 스스로 다시 여는 것뿐인데, 그건 답을 아는 채로 푸는 것이라
+ * 점수에 넣지 않는다. 그 단어가 무작위로 다시 뽑히는 일은 화면 쪽에서
+ * 미리 걸러 낸다(js/store.js 의 isScored, js/game.js 의 skip).
+ *
+ * 날짜를 키에 넣지 않는 이유가 하나 더 있다. puzzleDate 는 시트가 Date 로
+ * 바꿔 저장하는데, 스프레드시트 시간대와 스크립트 시간대가 다르면 하루가
+ * 밀려 같은 날 등록도 새 기록으로 통과해 버린다.
  */
-function isDuplicate_(sheet, clientId, puzzleId, puzzleDate) {
+function isDuplicate_(sheet, clientId, puzzleId) {
   var last = sheet.getLastRow();
   if (last < 2) return false;
   var values = sheet.getRange(2, COL_CLIENT_ID, last - 1, DUP_COLS).getValues();
   for (var i = 0; i < values.length; i++) {
-    if (String(values[i][0]) === clientId &&
-        String(values[i][2]) === puzzleId &&
-        normalizeDate_(values[i][3]) === puzzleDate) return true;
+    if (String(values[i][0]) === clientId && String(values[i][2]) === puzzleId) return true;
   }
   return false;
 }

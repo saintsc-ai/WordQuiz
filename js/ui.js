@@ -80,11 +80,15 @@
     paintSubmit();
   }
 
+  /* 이미 점수를 등록한 단어. 답을 아는 것이라 무작위로 다시 내지 않는다. */
+  function alreadyScored(word) { return global.Store.isScored(word); }
+
   function showResult() {
     Score.showResult({
       game: game,
       sharedResult: sharedResult,
       authored: authored,
+      scored: global.Store.isScored(game.answer),
       onAgain: newGame
     });
   }
@@ -162,7 +166,7 @@
     if (!word) global.Store.saveLength(n);
     submitBtn.textContent = '사전 불러오는 중…';
     return global.Dict.load(n).then(function (dict) {
-      game = new global.Game(dict);
+      game = new global.Game(dict, alreadyScored);
       shared = false;
       sharedResult = false;
       authored = Boolean(authoredWord);

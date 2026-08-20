@@ -111,6 +111,24 @@
     t.eq('끝난 판 제출은 done', g.submit(), { ok: false, reason: 'done' });
     t.ok('공유 격자에 X/5 가 찍힌다', g.shareText().indexOf('X/' + Game.MAX_TRIES) > 0, g.shareText().split('\n')[0]);
 
+    /* ── 이미 점수를 등록한 단어는 다시 내지 않는다 ── */
+    // skip 이 참인 단어는 무작위 후보에서 빠진다. '하늘' 하나만 남겨 둔다.
+    var only = new Game(dict, function (w) { return w !== '하늘'; });
+    t.eq('걸러지지 않은 후보만 뽑는다', only.answer, '하늘');
+    var picks = [];
+    for (var p = 0; p < 20; p++) { only.reset(); picks.push(only.answer); }
+    t.ok('다시 깔아도 걸러진 단어는 안 나온다',
+         picks.every(function (w) { return w === '하늘'; }), picks.join(','));
+    t.ok('걸러진 단어도 링크로 주면 그대로 깔린다',
+         only.reset('사과') === true && only.answer === '사과');
+
+    // 후보를 다 등록한 사람에게도 낼 단어는 있어야 한다
+    var none = new Game(dict, function () { return true; });
+    t.ok('후보가 전부 걸러지면 전체에서 고른다', WORDS.indexOf(none.answer) >= 0, none.answer);
+
+    var plain = new Game(dict);
+    t.ok('skip 을 주지 않으면 전체에서 고른다', WORDS.indexOf(plain.answer) >= 0, plain.answer);
+
     /* ── 결과 링크 복원 ─────────────────────────── */
     g.reset('사랑');
     'ㅅㅏㄹㅏㅇ'.split('').forEach(function (k) { g.type(k); });

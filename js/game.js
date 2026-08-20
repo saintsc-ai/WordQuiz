@@ -41,10 +41,23 @@
 
   var RANK = { off: 0, warn: 1, ok: 2 };
 
-  function Game(dict) {
+  /**
+   * skip(word) 가 참인 단어는 무작위로 뽑지 않는다. 이미 점수를 등록해
+   * 답을 아는 단어를 다시 내밀지 않으려는 것이다(js/store.js 의 isScored).
+   * 링크로 받은 단어는 이 걸름망을 지나지 않는다 — 그건 풀라고 준 것이다.
+   */
+  function Game(dict, skip) {
     this.dict = dict;
     this.length = dict.length;
+    this.skip = typeof skip === 'function' ? skip : null;
     this.reset();
+  }
+
+  /** 남은 후보에서 하나 고른다. 전부 걸러졌으면 전체에서 고른다. */
+  function pick(pool, skip) {
+    var left = skip ? pool.filter(function (w) { return !skip(w); }) : pool;
+    if (!left.length) left = pool;
+    return left[Math.floor(Math.random() * left.length)];
   }
 
   /**
@@ -57,8 +70,7 @@
       jamo = global.Jamo.decompose(word);
       if (!jamo || jamo.length !== this.length || !this.dict.valid.has(jamo)) return false;
     } else {
-      var pool = this.dict.answers;
-      word = pool[Math.floor(Math.random() * pool.length)];
+      word = pick(this.dict.answers, this.skip);
       jamo = global.Jamo.decompose(word);
     }
     this.answer = word;

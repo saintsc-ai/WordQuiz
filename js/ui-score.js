@@ -4,6 +4,7 @@
  * 이 게임은 한 판씩 무작위 단어를 내주고 몇 번이든 다시 풀 수 있다.
  * 그래서 순위는 '같은 문제를 누가 잘 풀었나'가 아니라
  * '오늘 얼마나 많이·잘 풀었나'를 세운다. 오늘도 누적도 사람별 합계다.
+ * 다만 한 단어는 한 번만 센다. 두 번째부터는 답을 아는 채로 푸는 것이다.
  */
 (function (global) {
   'use strict';
@@ -176,9 +177,10 @@
   /* 결과 ------------------------------------------------------------------ */
 
   /**
-   * ctx = { game, sharedResult, authored, onAgain }
+   * ctx = { game, sharedResult, authored, scored, onAgain }
    * sharedResult: 남의 결과 링크를 열어 보는 중 — 정답도 점수 등록도 감춘다.
    * authored: 내가 직접 낸 문제 — 점수에 넣지 않는다.
+   * scored: 이미 점수를 등록한 단어 — 한 단어는 한 번만 센다.
    */
   function showResult(ctx) {
     var game = ctx.game;
@@ -187,7 +189,8 @@
       return r.marks.map(function (m) { return ICON[m]; }).join('');
     }).join('<br>');
     var blocked = ctx.sharedResult ? '공유받은 기록은 등록할 수 없어요.' :
-      ctx.authored ? '직접 출제한 문제는 점수에 포함되지 않아요.' : '';
+      ctx.authored ? '직접 출제한 문제는 점수에 포함되지 않아요.' :
+      ctx.scored ? '이미 점수를 등록한 단어예요.' : '';
 
     Sheet.open(
       '<h2>' + (ctx.sharedResult ? '공유받은 결과' : (won ? '정답입니다 🎉' : '아쉬워요')) + '</h2>' +
@@ -258,6 +261,9 @@
         elapsedSeconds: game.elapsedSeconds(),
         won: game.status === 'win'
       }).then(function (data) {
+        // 서버가 중복이라 답해도 이 브라우저가 등록을 시도한 단어인 것은 같다.
+        // 기억해 두면 다음부터 무작위로 뽑지도, 링크로 열어도 등록하지도 않는다.
+        global.Store.rememberScored(game.answer);
         status.textContent = data.duplicate ? '이미 등록한 기록이에요.' : '점수가 등록됐어요.';
       }).catch(function () {
         button.disabled = false;
