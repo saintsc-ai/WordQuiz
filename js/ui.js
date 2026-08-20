@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  var LENGTHS = [5, 6, 7, 8, 9];
+  var LENGTHS = [5, 6, 7, 8, 9, 10];
   var TITLE = '오늘의 단어';
   var TITLE_SHARED = '공유받은 단어';
 
@@ -388,7 +388,8 @@
     });
 
     document.getElementById('act-share').addEventListener('click', function () {
-      var text = game.shareText() + '\n' + resultLink();
+      // 결과는 자랑하되, 링크를 연 사람은 같은 단어를 직접 풀게 한다.
+      var text = game.shareText() + '\n' + puzzleLink();
       if (navigator.share) {
         navigator.share({ text: text }).catch(function () { /* 사용자가 취소한 것 */ });
       } else {
@@ -435,7 +436,7 @@
     openSheet(
       '<h2>직접 출제</h2>' +
       '<p class="hint">사전에 있는 명사를 넣으면 그 단어로 푸는 링크를 만듭니다.<br>' +
-        '자모 5 ~ 9칸짜리만 낼 수 있어요.</p>' +
+        '자모 5 ~ 10칸짜리만 낼 수 있어요.</p>' +
       '<input class="compose-input" id="cw" type="text" placeholder="예: 안녕"' +
         ' autocomplete="off" autocapitalize="off" spellcheck="false" maxlength="12">' +
       '<p class="compose-status" id="cs">한글 명사를 입력하세요</p>' +
@@ -475,7 +476,7 @@
       var jamo = window.Jamo.decompose(w);
       if (!jamo) { setState('ㅙ · ㅞ 가 들어간 단어는 낼 수 없어요', 'bad'); return; }
       if (LENGTHS.indexOf(jamo.length) < 0) {
-        setState('자모 ' + jamo.length + '칸 — 5 ~ 9칸만 됩니다', 'bad');
+        setState('자모 ' + jamo.length + '칸 — 5 ~ 10칸만 됩니다', 'bad');
         return;
       }
       setState('확인하는 중…', '');
@@ -511,7 +512,7 @@
     openSheet(
       '<h2>규칙</h2>' +
       '<ol>' +
-        '<li>자모 5 ~ 9개 중 하나를 골라 그 길이의 명사를 맞힙니다. 예: 안녕 → ㅇㅏㄴㄴㅕㅇ (6칸)</li>' +
+        '<li>자모 5 ~ 10개 중 하나를 골라 그 길이의 명사를 맞힙니다. 예: 안녕 → ㅇㅏㄴㄴㅕㅇ (6칸)</li>' +
         '<li>기회는 5번. 추측하는 단어도 사전에 있는 명사여야 합니다.</li>' +
         '<li>쌍자음 · 겹받침 · 복합모음은 기본 자모를 이어서 칩니다. ㄲ=ㄱㄱ, ㄺ=ㄹㄱ, ㅐ=ㅏㅣ, ㅘ=ㅗㅏ</li>' +
         '<li>ㅙ · ㅞ 가 들어간 단어는 나오지 않습니다.</li>' +
