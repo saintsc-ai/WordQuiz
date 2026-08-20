@@ -17,12 +17,25 @@
 
   /* 순위 ------------------------------------------------------------------ */
 
+  function num(value, suffix) {
+    var n = Number(value);
+    return isFinite(n) ? n + suffix : '-';
+  }
+
+  /*
+   * 정적 파일은 GitHub Pages 가, 스코어보드는 Apps Script 가 따로 배포된다.
+   * 둘의 버전이 어긋나면 응답에 games/wins 가 없을 수 있다. 그 때는 옛 응답대로
+   * 판 하나의 걸린 시간을 보여 준다. 없는 값을 NaN 으로 찍지 않는다.
+   */
   function rankingRow(row, index) {
+    var detail = row && row.games === undefined ?
+      Share.formatTime(row.elapsedSeconds) :
+      num(row.wins, '승') + ' / ' + num(row.games, '판');
     return '<div class="ranking-row">' +
       '<span class="rank-number">' + (index + 1) + '</span>' +
       '<b>' + Share.escapeHtml(row.nickname) + '</b>' +
-      '<span class="rank-score">' + Number(row.score) + '점</span>' +
-      '<span class="rank-time">' + Number(row.wins) + '승 / ' + Number(row.games) + '판</span>' +
+      '<span class="rank-score">' + num(row.score, '점') + '</span>' +
+      '<span class="rank-time">' + detail + '</span>' +
     '</div>';
   }
 
