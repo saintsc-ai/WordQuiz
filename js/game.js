@@ -141,6 +141,51 @@
 
   Game.prototype.code = function () { return encode(this.answer); };
 
+  /** 현재 판의 정답과 시도 기록을 결과 공유 링크에 담는다. */
+  Game.prototype.resultCode = function () {
+    var payload = {
+      answer: this.answer,
+      status: this.status,
+      rows: this.rows
+    };
+    return encode(JSON.stringify(payload));
+  };
+
+  /** 결과 공유 링크에서 복원한 기록을 현재 판에 적용한다. */
+  Game.prototype.restoreResult = function (code) {
+    var payload;
+    try {
+      payload = JSON.parse(decode(code));
+    } catch (e) {
+      return false;
+    }
+    if (!payload || payload.answer !== this.answer ||
+        (payload.status !== 'win' && payload.status !== 'lose') ||
+        !Array.isArray(payload.rows) || payload.rows.length > MAX_TRIES) {
+      return false;
+    }
+    for (var i = 0; i < payload.rows.length; i++) {
+      var row = payload.rows[i];
+      if (!row || typeof row.jamo !== 'string' || row.jamo.length !== this.length ||
+          !Array.isArray(row.marks) || row.marks.length !== this.length ||
+          !this.dict.valid.has(row.jamo)) return false;
+    }
+    this.rows = payload.rows;
+    this.current = '';
+    this.status = payload.status;
+    this.keyState = {};
+    this.rows.forEach(function (row) {
+      row.marks.forEach(function (mark, index) {
+        if (mark !== 'ok' && mark !== 'warn' && mark !== 'off') return;
+        var key = row.jamo[index];
+        if (!(key in this.keyState) || RANK[mark] > RANK[this.keyState[key]]) {
+          this.keyState[key] = mark;
+        }
+      }, this);
+    }, this);
+    return true;
+  };
+
   Game.MAX_TRIES = MAX_TRIES;
   Game.score = score;
   Game.encode = encode;

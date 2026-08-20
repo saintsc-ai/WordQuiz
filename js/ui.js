@@ -36,6 +36,7 @@
   var game = null;
   var locked = false;   // 뒤집기 애니메이션 동안 입력을 막는다
   var shared = false;   // 링크로 받은 문제를 푸는 중인가
+  var sharedResult = false; // 결과 링크를 열어 결과를 보는 중인가
   var keyEls = {};
   var toastTimer = null;
 
@@ -230,8 +231,17 @@
 
   function puzzleLink() { return linkFor(game.answer); }
 
+  function resultLink() {
+    return location.href.replace(/#.*$/, '') + '#r=' + game.resultCode();
+  }
+
   function hashCode() {
     var m = /[#&]p=([A-Za-z0-9_-]+)/.exec(location.hash);
+    return m ? m[1] : null;
+  }
+
+  function resultHashCode() {
+    var m = /[#&]r=([A-Za-z0-9_-]+)/.exec(location.hash);
     return m ? m[1] : null;
   }
 
@@ -290,11 +300,11 @@
         (won ? game.rows.length + '번 만에 맞혔어요' : '5번 안에 못 맞혔어요') +
       '</p>' +
       '<div class="grid">' + grid + '</div>' +
-      '<p class="hint">링크를 보내면 친구도 <b>같은 단어</b>를 풀 수 있어요.<br>' +
-        '링크에 정답이 드러나지는 않습니다.</p>' +
+      '<p class="hint">결과 링크를 보내면 친구가 <b>내 기록</b>을 바로 볼 수 있어요.<br>' +
+        '정답은 링크에 그대로 드러나지 않습니다.</p>' +
       '<div class="sheet-actions">' +
         '<button type="button" id="act-link">링크 복사</button>' +
-        '<button type="button" id="act-share">결과 공유</button>' +
+        '<button type="button" id="act-share">결과 링크 공유</button>' +
         '<button type="button" class="primary" id="act-again">한 판 더</button>' +
       '</div>'
     );
@@ -309,7 +319,7 @@
     });
 
     document.getElementById('act-share').addEventListener('click', function () {
-      var text = game.shareText() + '\n' + puzzleLink();
+      var text = game.shareText() + '\n' + resultLink();
       if (navigator.share) {
         navigator.share({ text: text }).catch(function () { /* 사용자가 취소한 것 */ });
       } else {
@@ -441,6 +451,7 @@
     if (!game) return;
     game.reset();
     shared = false;
+    sharedResult = false;
     clearHash();
     paintTitle();
     buildBoard();
@@ -452,7 +463,7 @@
    * 길이 n 의 사전을 불러와 판을 시작한다.
    * word 를 주면 그 단어를 정답으로 고정한다(링크로 받은 문제).
    */
-  function start(n, word) {
+  function start(n, word, resultCode) {
     markChips(n);
     if (!word) {
       try { localStorage.setItem('wordquiz.length', String(n)); } catch (e) { /* 무시 */ }
@@ -461,6 +472,7 @@
     return window.Dict.load(n).then(function (dict) {
       game = new window.Game(dict);
       shared = false;
+      sharedResult = false;
       if (word) {
         if (game.reset(word)) {
           shared = true;
@@ -469,10 +481,12 @@
           clearHash();
         }
       }
+      if (resultCode && game.restoreResult(resultCode)) sharedResult = true;
       paintTitle();
       buildBoard();
       paintKeyboard();
       paintBoard();
+      if (sharedResult) setTimeout(showResult, 0);
     }).catch(function () {
       submitBtn.textContent = '사전을 불러오지 못했습니다';
     });
@@ -480,6 +494,19 @@
 
   /** 해시에 문제가 실려 있으면 그 판으로 시작한다. 아니면 저장된 길이로 새 판. */
   function startFromHash() {
+    var resultCode = resultHashCode();
+    if (resultCode) {
+      var resultWord = null;
+      try {
+        resultWord = JSON.parse(window.Game.decode(resultCode)).answer;
+      } catch (e) { resultWord = null; }
+      var resultJamo = resultWord && window.Jamo.decompose(resultWord);
+      if (resultJamo && LENGTHS.indexOf(resultJamo.length) >= 0) {
+        return start(resultJamo.length, resultWord, resultCode);
+      }
+      toast('결과 링크가 올바르지 않아요');
+      clearHash();
+    }
     var code = hashCode();
     if (code) {
       var word = null;
@@ -510,7 +537,7 @@
 
   // 같은 탭에 링크를 붙여넣는 경우
   window.addEventListener('hashchange', function () {
-    if (hashCode()) { closeSheet(); startFromHash(); }
+    if (hashCode() || resultHashCode()) { closeSheet(); startFromHash(); }
   });
 
   // 회전, 주소창 접힘, 데스크톱 창 크기 변경
