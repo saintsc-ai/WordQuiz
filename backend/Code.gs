@@ -71,8 +71,11 @@ function daily_(rows, date, length) {
 }
 
 function rowDate_(row) {
-  if (row.createdAt instanceof Date && !isNaN(row.createdAt.getTime())) {
-    return Utilities.formatDate(row.createdAt, Session.getScriptTimeZone(), 'yyyy-MM-dd');
+  if (row.createdAt) {
+    var createdAt = row.createdAt instanceof Date ? row.createdAt : new Date(row.createdAt);
+    if (!isNaN(createdAt.getTime())) {
+      return Utilities.formatDate(createdAt, Session.getScriptTimeZone(), 'yyyy-MM-dd');
+    }
   }
   return row.puzzleDate;
 }
