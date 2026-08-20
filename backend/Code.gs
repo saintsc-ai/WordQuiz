@@ -1,12 +1,14 @@
 var SHEET_NAME = 'results';
+var SPREADSHEET_ID = '1CO_hgEwuvvPDr1NL8Xh_mwyGDzxneq2KsE4dWcsmGxQ';
 var HEADERS = [
   'createdAt', 'clientId', 'nickname', 'puzzleId', 'puzzleDate',
   'jamoLength', 'attempts', 'score', 'elapsedSeconds', 'won'
 ];
 
 function sheet_() {
-  var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_NAME);
-  if (!sheet) sheet = SpreadsheetApp.getActiveSpreadsheet().insertSheet(SHEET_NAME);
+  var book = SpreadsheetApp.openById(SPREADSHEET_ID);
+  var sheet = book.getSheetByName(SHEET_NAME);
+  if (!sheet) sheet = book.insertSheet(SHEET_NAME);
   if (sheet.getLastRow() === 0) sheet.appendRow(HEADERS);
   return sheet;
 }
