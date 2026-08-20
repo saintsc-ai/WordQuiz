@@ -38,6 +38,7 @@
   var locked = false;   // 뒤집기 애니메이션 동안 입력을 막는다
   var shared = false;   // 링크로 받은 문제를 푸는 중인가
   var sharedResult = false; // 결과 링크를 열어 결과를 보는 중인가
+  var authored = false; // 내가 직접 출제한 문제를 푸는 중인가
   var keyEls = {};
   var toastTimer = null;
 
@@ -362,8 +363,8 @@
       '<div class="score-summary"><b>' + game.score() + '점</b><span>걸린 시간 ' + formatTime(game.elapsedSeconds()) + '</span></div>' +
       '<div class="score-submit">' +
         '<input id="score-name" type="text" maxlength="20" placeholder="닉네임" value="' + escapeHtml(window.WordQuizScoreboard.nickname()) + '">' +
-        '<button type="button" id="act-score"' + (sharedResult ? ' disabled' : '') + '>점수 등록</button>' +
-        '<p id="score-status">' + (sharedResult ? '공유받은 기록은 등록할 수 없어요.' : '') + '</p>' +
+        '<button type="button" id="act-score"' + (sharedResult || authored ? ' disabled' : '') + '>점수 등록</button>' +
+        '<p id="score-status">' + (sharedResult ? '공유받은 기록은 등록할 수 없어요.' : authored ? '직접 출제한 문제는 점수에 포함되지 않아요.' : '') + '</p>' +
       '</div>' +
       '<p class="hint">결과 링크를 보내면 친구가 <b>내 기록</b>을 바로 볼 수 있어요.<br>' +
         '정답은 링크에 그대로 드러나지 않습니다.</p>' +
@@ -500,7 +501,7 @@
       var w = word;
       closeSheet();
       try { history.replaceState(null, '', linkFor(w)); } catch (e) { /* file:// */ }
-      start(window.Jamo.decompose(w).length, w);
+      start(window.Jamo.decompose(w).length, w, null, true);
     });
   }
 
@@ -550,6 +551,7 @@
     game.reset();
     shared = false;
     sharedResult = false;
+    authored = false;
     clearHash();
     paintTitle();
     buildBoard();
@@ -561,7 +563,7 @@
    * 길이 n 의 사전을 불러와 판을 시작한다.
    * word 를 주면 그 단어를 정답으로 고정한다(링크로 받은 문제).
    */
-  function start(n, word, resultCode) {
+  function start(n, word, resultCode, authoredWord) {
     markChips(n);
     if (!word) {
       try { localStorage.setItem('wordquiz.length', String(n)); } catch (e) { /* 무시 */ }
@@ -571,9 +573,10 @@
       game = new window.Game(dict);
       shared = false;
       sharedResult = false;
+      authored = Boolean(authoredWord);
       if (word) {
         if (game.reset(word)) {
-          shared = true;
+          shared = !authored;
         } else {
           toast('링크의 단어를 열 수 없어 새 단어로 시작합니다');
           clearHash();
