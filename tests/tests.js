@@ -136,6 +136,26 @@
     }));
     t.ok('사전에 없는 줄이 든 결과는 거부', g3.restoreResult(forged) === false);
 
+    // 채점표를 손댄 결과는 받지 않는다 (다시 매겨 대조한다)
+    var realMarks = Game.score(Jamo.decompose('사랑'), Jamo.decompose('하늘'));
+    function payload(rows, status) {
+      return Game.encode(JSON.stringify({ answer: '하늘', status: status, elapsedSeconds: 1, rows: rows }));
+    }
+    function rowsOf(n, marks) {
+      var out = [];
+      for (var k = 0; k < n; k++) out.push({ jamo: Jamo.decompose('사랑'), marks: marks });
+      return out;
+    }
+    t.ok('전부 초록으로 고친 격자는 거부',
+         g3.restoreResult(payload(rowsOf(5, ['ok','ok','ok','ok','ok']), 'lose')) === false);
+    t.ok('진짜 채점표를 단 5줄 패배는 받는다',
+         g3.restoreResult(payload(rowsOf(5, realMarks), 'lose')) === true);
+    g3.reset('하늘');
+    t.ok('정답을 못 맞혔는데 win 이라 우기면 거부',
+         g3.restoreResult(payload(rowsOf(5, realMarks), 'win')) === false);
+    t.ok('기회가 남았는데 lose 라 하면 거부',
+         g3.restoreResult(payload(rowsOf(1, realMarks), 'lose')) === false);
+
     var tooMany = Game.encode(JSON.stringify({
       answer: '하늘', status: 'win', elapsedSeconds: 1,
       rows: new Array(Game.MAX_TRIES + 1).fill({ jamo: 'ㅎㅏㄴㅡㄹ', marks: ['ok','ok','ok','ok','ok'] })

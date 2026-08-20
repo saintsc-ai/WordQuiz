@@ -184,7 +184,17 @@
       if (!row || typeof row.jamo !== 'string' || row.jamo.length !== this.length ||
           !Array.isArray(row.marks) || row.marks.length !== this.length ||
           !this.dict.valid.has(row.jamo)) return false;
+      // 채점표는 믿지 않고 다시 매겨 본다. 손댄 격자를 자기 기록인 양 퍼뜨리지 못하게.
+      var expected = score(row.jamo, this.answerJamo);
+      for (var j = 0; j < expected.length; j++) {
+        if (row.marks[j] !== expected[j]) return false;
+      }
     }
+    // 마지막 줄이 정답이면 win, 아니면 lose 여야 앞뒤가 맞는다.
+    var lastWon = payload.rows.length > 0 &&
+      payload.rows[payload.rows.length - 1].jamo === this.answerJamo;
+    if (lastWon !== (payload.status === 'win')) return false;
+    if (payload.status === 'lose' && payload.rows.length !== MAX_TRIES) return false;
     this.rows = payload.rows;
     this.current = '';
     this.status = payload.status;

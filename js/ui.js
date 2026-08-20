@@ -1,22 +1,22 @@
 /*
- * ui.js — 화면 렌더링과 입력 처리
+ * ui.js — 조립 · 입력 처리 · 해시 라우팅
+ *
+ * 그리는 일은 ui-board.js, 시트 내용은 ui-score.js / ui-compose.js 가 맡는다.
+ * 여기는 게임 하나를 들고 있으면서 그 셋을 이어 붙인다.
  */
-(function () {
+(function (global) {
   'use strict';
 
-  var LENGTHS = window.Dict.LENGTHS;
-  var MAX_TRIES = window.Game.MAX_TRIES;
-  var LENGTH_RANGE = LENGTHS[0] + ' ~ ' + LENGTHS[LENGTHS.length - 1];
-  var DEFAULT_LENGTH = 6;
-  var TITLE = '오늘의 단어';
-  var TITLE_SHARED = '공유받은 단어';
+  var Sheet = global.UISheet;
+  var Board = global.UIBoard;
+  var Share = global.UIShare;
+  var Score = global.UIScore;
+  var Compose = global.UICompose;
 
-  // 참고 이미지와 같은 배열. 두벌식에서 쌍자음과 복합모음 키를 뺀 24키.
-  var ROWS = [
-    ['ㅂ', 'ㅈ', 'ㄷ', 'ㄱ', 'ㅅ', 'ㅛ', 'ㅕ', 'ㅑ', '⌫'],
-    ['ㅁ', 'ㄴ', 'ㅇ', 'ㄹ', 'ㅎ', 'ㅗ', 'ㅓ', 'ㅏ', 'ㅣ'],
-    ['ㅋ', 'ㅌ', 'ㅊ', 'ㅍ', 'ㅠ', 'ㅜ', 'ㅡ']
-  ];
+  var LENGTHS = global.Dict.LENGTHS;
+  var DEFAULT_LENGTH = 6;
+  var TITLE = '단어 퍼즐';
+  var TITLE_SHARED = '공유받은 단어';
 
   // 물리 키보드(영문 자판 기준 두벌식 자리)
   var QWERTY = {
@@ -25,27 +25,18 @@
     z: 'ㅋ', x: 'ㅌ', c: 'ㅊ', v: 'ㅍ', b: 'ㅠ', n: 'ㅜ', m: 'ㅡ'
   };
 
-  var REVEAL_STEP = 220; // 타일 한 칸이 뒤집히는 간격(ms)
-
-  var board = document.getElementById('board');
-  var keyboard = document.getElementById('keyboard');
   var submitBtn = document.getElementById('btn-submit');
-  var toastEl = document.getElementById('toast');
-  var sheet = document.getElementById('sheet');
-  var sheetBody = document.getElementById('sheet-body');
   var lengths = document.getElementById('lengths');
   var titleEl = document.getElementById('title');
-  var scoreboardBtn = document.getElementById('btn-scoreboard');
 
   var game = null;
-  var locked = false;   // 뒤집기 애니메이션 동안 입력을 막는다
-  var shared = false;   // 링크로 받은 문제를 푸는 중인가
+  var locked = false;       // 뒤집기 애니메이션 동안 입력을 막는다
+  var shared = false;       // 링크로 받은 문제를 푸는 중인가
   var sharedResult = false; // 결과 링크를 열어 결과를 보는 중인가
-  var authored = false; // 내가 직접 출제한 문제를 푸는 중인가
-  var keyEls = {};
-  var toastTimer = null;
+  var authored = false;     // 내가 직접 출제한 문제를 푸는 중인가
 
-  /* 길이 선택 칩 */
+  /* 화면 갱신 ------------------------------------------------------------- */
+
   function buildLengths() {
     lengths.innerHTML = '';
     LENGTHS.forEach(function (n) {
@@ -57,95 +48,14 @@
     });
   }
 
-  /* 자판 */
-  function buildKeyboard() {
-    keyboard.innerHTML = '';
-    keyEls = {};
-    ROWS.forEach(function (row) {
-      var div = document.createElement('div');
-      div.className = 'krow';
-      row.forEach(function (k) {
-        var btn = document.createElement('button');
-        btn.type = 'button';
-        btn.className = 'key';
-        btn.textContent = k;
-        btn.addEventListener('click', function () {
-          if (k === '⌫') { onBack(); } else { onType(k); }
-        });
-        div.appendChild(btn);
-        if (k !== '⌫') keyEls[k] = btn;
-      });
-      keyboard.appendChild(div);
+  function markChips(n) {
+    Array.prototype.forEach.call(lengths.children, function (b) {
+      b.setAttribute('aria-pressed', String(Number(b.dataset.len) === n));
     });
   }
 
-  function paintKeyboard() {
-    Object.keys(keyEls).forEach(function (k) {
-      keyEls[k].className = 'key' + (game.keyState[k] ? ' ' + game.keyState[k] : '');
-    });
-  }
-
-  /* 보드 */
-  function buildBoard() {
-    board.style.setProperty('--cols', String(game.length));
-    board.style.gridTemplateColumns = 'repeat(' + game.length + ', var(--tile))';
-    sizeBoard();
-    board.innerHTML = '';
-    for (var r = 0; r < MAX_TRIES; r++) {
-      for (var c = 0; c < game.length; c++) {
-        var t = document.createElement('div');
-        t.className = 'tile';
-        board.appendChild(t);
-      }
-    }
-  }
-
-  function tileAt(r, c) {
-    return board.children[r * game.length + c];
-  }
-
-  /*
-   * 타일 크기는 가로만으로 정할 수 없다. 세로가 모자라면 보드가 배정된 높이를
-   * 넘겨 버리는데, .board-wrap 이 가운데 정렬이라 넘친 만큼 위아래로 삐져나와
-   * 길이 선택 칩과 자판을 덮는다. 남은 폭과 높이를 실제로 재서 둘 중 작은 쪽에 맞춘다.
-   */
-  var TILE_MAX = 62;
-  var TILE_MIN = 24;
-  var GAP = 8;
-
-  function sizeBoard() {
-    if (!game) return;
-    var wrap = board.parentNode;
-    var cs = getComputedStyle(wrap);
-    var w = wrap.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
-    var h = wrap.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom);
-    var rows = MAX_TRIES;
-    var byWidth = (w - (game.length - 1) * GAP) / game.length;
-    var byHeight = (h - (rows - 1) * GAP) / rows;
-    var tile = Math.min(TILE_MAX, byWidth, byHeight);
-    board.style.setProperty('--tile', Math.max(TILE_MIN, tile).toFixed(2) + 'px');
-  }
-
-  // 확정된 행과 입력 중인 행을 다시 그린다.
-  function paintBoard() {
-    for (var r = 0; r < MAX_TRIES; r++) {
-      var row = game.rows[r];
-      for (var c = 0; c < game.length; c++) {
-        var t = tileAt(r, c);
-        if (row) {
-          t.textContent = row.jamo[c];
-          t.className = 'tile ' + row.marks[c];
-        } else if (r === game.rows.length) {
-          var ch = game.current[c];
-          t.textContent = ch || '';
-          t.className = 'tile' + (ch ? ' filled' : '');
-        } else {
-          t.textContent = '';
-          t.className = 'tile';
-        }
-      }
-    }
-    paintSubmit();
+  function paintTitle() {
+    titleEl.textContent = shared ? TITLE_SHARED : TITLE;
   }
 
   function paintSubmit() {
@@ -165,429 +75,69 @@
     }
   }
 
-  /* 입력 */
+  function repaint() {
+    Board.paint(game);
+    paintSubmit();
+  }
+
+  function showResult() {
+    Score.showResult({
+      game: game,
+      sharedResult: sharedResult,
+      authored: authored,
+      onAgain: newGame
+    });
+  }
+
+  /* 입력 ------------------------------------------------------------------ */
+
   function onType(k) {
     if (locked) return;
-    if (game.type(k)) paintBoard();
+    if (game && game.type(k)) repaint();
   }
 
   function onBack() {
     if (locked) return;
-    if (game.back()) paintBoard();
+    if (game && game.back()) repaint();
   }
 
   function onSubmit() {
-    if (locked) return;
+    if (locked || !game) return;
     if (game.status !== 'play') { showResult(); return; }
 
     var rowIndex = game.rows.length;
     var res = game.submit();
     if (!res.ok) {
-      if (res.reason === 'short') toast('자모 ' + game.length + '개를 모두 채우세요');
-      if (res.reason === 'unknown') toast('사전에 없는 단어예요');
-      board.classList.remove('shake');
-      void board.offsetWidth;
-      board.classList.add('shake');
+      if (res.reason === 'short') Sheet.toast('자모 ' + game.length + '개를 모두 채우세요');
+      if (res.reason === 'unknown') Sheet.toast('사전에 없는 단어예요');
+      Board.shake();
       return;
     }
 
-    // 왼쪽부터 한 칸씩 뒤집으며 색을 입힌다.
     locked = true;
-    var row = game.rows[rowIndex];
-    for (var c = 0; c < game.length; c++) {
-      (function (c) {
-        var t = tileAt(rowIndex, c);
-        t.style.animationDelay = (c * REVEAL_STEP) + 'ms';
-        t.classList.add('reveal');
-        setTimeout(function () {
-          t.className = 'tile ' + row.marks[c] + ' reveal';
-        }, c * REVEAL_STEP + REVEAL_STEP);
-      })(c);
-    }
-    setTimeout(function () {
+    Board.reveal(game, rowIndex, function () {
       locked = false;
-      paintKeyboard();
-      paintBoard();
+      Board.paintKeyboard(game);
+      repaint();
       if (game.status !== 'play') showResult();
-    }, game.length * REVEAL_STEP + 320);
+    });
   }
 
   document.addEventListener('keydown', function (e) {
-    if (!sheet.hidden) {
-      if (e.key === 'Escape') { e.preventDefault(); closeSheet(); }
+    if (Sheet.isOpen()) {
+      if (e.key === 'Escape') { e.preventDefault(); Sheet.close(); return; }
+      Sheet.trap(e);
       return;   // 시트가 열려 있는 동안에는 보드 입력을 받지 않는다
     }
     if (!game) return;
     if (e.key === 'Backspace') { e.preventDefault(); onBack(); return; }
     if (e.key === 'Enter') { e.preventDefault(); onSubmit(); return; }
     var k = QWERTY[e.key.toLowerCase()];
-    if (!k && window.Jamo.KEYS[e.key]) k = e.key;   // 한글 자판으로 직접 친 경우
+    if (!k && global.Jamo.KEYS[e.key]) k = e.key;   // 한글 자판으로 직접 친 경우
     if (k) { e.preventDefault(); onType(k); }
   });
 
-  /* 안내 */
-  function toast(msg) {
-    toastEl.textContent = msg;
-    toastEl.classList.add('show');
-    clearTimeout(toastTimer);
-    toastTimer = setTimeout(function () { toastEl.classList.remove('show'); }, 1600);
-  }
-
-  function openSheet(html) {
-    sheetBody.innerHTML = html;
-    sheet.hidden = false;
-  }
-
-  function closeSheet() { sheet.hidden = true; }
-
-  document.getElementById('sheet-close').addEventListener('click', closeSheet);
-  sheet.addEventListener('click', function (e) { if (e.target === sheet) closeSheet(); });
-
-  /* 공유 ------------------------------------------------------------------ */
-
-  /** 단어 하나를 그대로 낼 수 있는 링크. 정답은 해시에 인코딩해 숨긴다. */
-  function linkFor(word) {
-    return location.href.replace(/#.*$/, '') + '#p=' + window.Game.encode(word);
-  }
-
-  function puzzleLink() { return linkFor(game.answer); }
-
-  function resultLink() {
-    return location.href.replace(/#.*$/, '') + '#r=' + game.resultCode();
-  }
-
-  function hashCode() {
-    var m = /[#&]p=([A-Za-z0-9_-]+)/.exec(location.hash);
-    return m ? m[1] : null;
-  }
-
-  function resultHashCode() {
-    var m = /[#&]r=([A-Za-z0-9_-]+)/.exec(location.hash);
-    return m ? m[1] : null;
-  }
-
-  function clearHash() {
-    if (!location.hash) return;
-    // file:// 에서는 replaceState 가 막힐 수 있다.
-    try {
-      history.replaceState(null, '', location.href.replace(/#.*$/, ''));
-    } catch (e) {
-      location.hash = '';
-    }
-  }
-
-  /** clipboard API 는 https / localhost 에서만 쓸 수 있어 대체 경로를 둔다. */
-  function copy(text) {
-    if (navigator.clipboard && window.isSecureContext) {
-      return navigator.clipboard.writeText(text);
-    }
-    return new Promise(function (resolve, reject) {
-      var ta = document.createElement('textarea');
-      ta.value = text;
-      ta.setAttribute('readonly', '');
-      ta.style.position = 'fixed';
-      ta.style.opacity = '0';
-      document.body.appendChild(ta);
-      ta.select();
-      var ok = false;
-      try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
-      document.body.removeChild(ta);
-      if (ok) { resolve(); } else { reject(new Error('copy failed')); }
-    });
-  }
-
-  function copyThen(text, msg) {
-    copy(text).then(function () {
-      toast(msg);
-    }).catch(function () {
-      toast('복사하지 못했어요');
-    });
-  }
-
-  function escapeHtml(value) {
-    return String(value).replace(/[&<>"']/g, function (ch) {
-      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch];
-    });
-  }
-
-  function formatTime(seconds) {
-    var n = Number(seconds) || 0;
-    return Math.floor(n / 60) + ':' + String(n % 60).padStart(2, '0');
-  }
-
-  function rankingRow(row, index, overall) {
-    return '<div class="ranking-row">' +
-      '<span class="rank-number">' + (index + 1) + '</span>' +
-      '<b>' + escapeHtml(row.nickname) + '</b>' +
-      '<span class="rank-score">' + row.score + '점</span>' +
-      '<span class="rank-time">' + (overall ? row.wins + '승 / ' + row.games + '판' : formatTime(row.elapsedSeconds)) + '</span>' +
-    '</div>';
-  }
-
-  function rankHeader(kind) {
-    return '<h2>스코어보드</h2>' +
-      '<div class="rank-tabs">' +
-        '<button type="button" class="' + (kind === 'daily' ? 'selected' : '') + '" id="rank-daily">오늘 순위</button>' +
-        '<button type="button" class="' + (kind === 'overall' ? 'selected' : '') + '" id="rank-overall">누적 순위</button>' +
-      '</div>' +
-      '<p class="rank-caption">' + (kind === 'daily' ? '전체 자모 · 점수 / 시간' : '총점 · 승리 / 플레이') + '</p>';
-  }
-
-  // 기록이 없으면 안내문만 내보낸다. 호출부는 이 때 목록 엘리먼트를 찾으면 안 된다.
-  function rankingShell(count) {
-    if (!count) return '<p class="empty-rank">아직 등록된 기록이 없어요.</p>';
-    return '<div class="ranking-scroll" id="ranking-scroll">' +
-      '<div class="ranking-list" id="ranking-list"></div>' +
-      '<p class="ranking-loading" id="ranking-loading">더 불러오는 중…</p>' +
-    '</div>';
-  }
-
-  function showScoreboard(kind) {
-    kind = kind || 'daily';
-    openSheet('<h2>스코어보드</h2><p class="hint">기록을 불러오는 중…</p>');
-    if (!window.WordQuizScoreboard.configured()) {
-      openSheet(
-        '<h2>스코어보드</h2>' +
-        '<p class="hint">Google Sheets 연결이 아직 설정되지 않았어요.<br>게임 결과는 계속 플레이할 수 있습니다.</p>'
-      );
-      return;
-    }
-    // date 를 보내지 않는다. '오늘'의 기준은 서버(스크립트 시간대)가 정한다.
-    window.WordQuizScoreboard.rankings(kind).then(function (data) {
-      var rows = (data && data.rows) || [];
-      openSheet(rankHeader(kind) + rankingShell(rows.length));
-
-      // 탭은 기록이 없을 때도 눌러야 하므로 목록보다 먼저 연결한다.
-      document.getElementById('rank-daily').addEventListener('click', function () { showScoreboard('daily'); });
-      document.getElementById('rank-overall').addEventListener('click', function () { showScoreboard('overall'); });
-      if (!rows.length) return;
-
-      var list = document.getElementById('ranking-list');
-      var scroll = document.getElementById('ranking-scroll');
-      var loading = document.getElementById('ranking-loading');
-      var offset = 0;
-      var pageSize = 10;
-      function appendRankings() {
-        var next = rows.slice(offset, offset + pageSize);
-        next.forEach(function (row, index) {
-          list.insertAdjacentHTML('beforeend', rankingRow(row, offset + index, kind === 'overall'));
-        });
-        offset += next.length;
-        loading.hidden = offset >= rows.length;
-      }
-      appendRankings();
-      scroll.addEventListener('scroll', function () {
-        if (scroll.scrollTop + scroll.clientHeight >= scroll.scrollHeight - 40) appendRankings();
-      });
-    }, function () {
-      // 통신 실패만 여기로 온다. 위 렌더링에서 난 예외는 삼키지 않는다.
-      openSheet('<h2>스코어보드</h2><p class="hint">순위를 불러오지 못했어요.<br>잠시 후 다시 시도해 주세요.</p>');
-    });
-  }
-
-  /* 결과 ------------------------------------------------------------------ */
-
-  var ICON = { ok: '🟩', warn: '🟨', off: '⬜' };
-
-  function showResult() {
-    var won = game.status === 'win';
-    var grid = game.rows.map(function (r) {
-      return r.marks.map(function (m) { return ICON[m]; }).join('');
-    }).join('<br>');
-    var answerView = sharedResult ? '<div class="answer hidden-answer">공유된 결과</div>' :
-      '<div class="answer">' + game.answer + '</div>';
-
-    openSheet(
-      '<h2>' + (sharedResult ? '공유받은 결과' : (won ? '정답입니다 🎉' : '아쉬워요')) + '</h2>' +
-      answerView +
-      '<p style="text-align:center">' +
-        (won ? game.rows.length + '번 만에 맞혔어요' : MAX_TRIES + '번 안에 못 맞혔어요') +
-      '</p>' +
-      '<div class="grid">' + grid + '</div>' +
-      '<div class="score-summary"><b>' + game.score() + '점</b><span>걸린 시간 ' + formatTime(game.elapsedSeconds()) + '</span></div>' +
-      '<div class="score-submit">' +
-        '<input id="score-name" type="text" maxlength="20" placeholder="닉네임" value="' + escapeHtml(window.WordQuizScoreboard.nickname()) + '">' +
-        '<button type="button" id="act-score"' + (sharedResult || authored ? ' disabled' : '') + '>점수 등록</button>' +
-        '<p id="score-status">' + (sharedResult ? '공유받은 기록은 등록할 수 없어요.' : authored ? '직접 출제한 문제는 점수에 포함되지 않아요.' : '') + '</p>' +
-      '</div>' +
-      '<p class="hint">결과 링크를 보내면 친구가 <b>내 기록</b>을 바로 볼 수 있어요.<br>' +
-        '정답은 링크에 그대로 드러나지 않습니다.</p>' +
-      '<div class="sheet-actions">' +
-        '<button type="button" id="act-link">링크 복사</button>' +
-        '<button type="button" id="act-share">결과 링크 공유</button>' +
-        '<button type="button" id="act-ranking">순위 보기</button>' +
-        '<button type="button" class="primary" id="act-again">한 판 더</button>' +
-      '</div>'
-    );
-
-    document.getElementById('act-again').addEventListener('click', function () {
-      closeSheet();
-      newGame();
-    });
-
-    document.getElementById('act-link').addEventListener('click', function () {
-      copyThen(puzzleLink(), '문제 링크를 복사했어요');
-    });
-
-    document.getElementById('act-share').addEventListener('click', function () {
-      // 결과는 자랑하되, 링크를 연 사람은 같은 단어를 직접 풀게 한다.
-      var text = game.shareText() + '\n' + puzzleLink();
-      if (navigator.share) {
-        navigator.share({ text: text }).catch(function () { /* 사용자가 취소한 것 */ });
-      } else {
-        copyThen(text, '결과와 링크를 복사했어요');
-      }
-    });
-
-    document.getElementById('act-ranking').addEventListener('click', function () {
-      showScoreboard('daily');
-    });
-
-    document.getElementById('act-score').addEventListener('click', function () {
-      var name = document.getElementById('score-name').value.trim();
-      var status = document.getElementById('score-status');
-      if (!name) { status.textContent = '닉네임을 입력해 주세요.'; return; }
-      if (!window.WordQuizScoreboard.configured()) {
-        status.textContent = '스코어보드 연결이 아직 설정되지 않았어요.';
-        return;
-      }
-      var button = document.getElementById('act-score');
-      button.disabled = true;
-      status.textContent = '등록하는 중…';
-      window.WordQuizScoreboard.submit({
-        nickname: name,
-        puzzleId: game.code(),
-        jamoLength: game.length,
-        attempts: game.rows.length,
-        score: game.score(),
-        elapsedSeconds: game.elapsedSeconds(),
-        won: game.status === 'win'
-      }).then(function (data) {
-        status.textContent = data.duplicate ? '이미 등록한 기록이에요.' : '점수가 등록됐어요.';
-      }).catch(function () {
-        button.disabled = false;
-        status.textContent = '등록하지 못했어요.';
-      });
-    });
-  }
-
-  /* 직접 출제 ------------------------------------------------------------ */
-
-  function showCompose() {
-    openSheet(
-      '<h2>직접 출제</h2>' +
-      '<p class="hint">사전에 있는 명사를 넣으면 그 단어로 푸는 링크를 만듭니다.<br>' +
-        '자모 ' + LENGTH_RANGE + '칸짜리만 낼 수 있어요.</p>' +
-      '<input class="compose-input" id="cw" type="text" placeholder="예: 안녕"' +
-        ' autocomplete="off" autocapitalize="off" spellcheck="false" maxlength="12">' +
-      '<p class="compose-status" id="cs">한글 명사를 입력하세요</p>' +
-      '<input class="compose-link" id="cl" type="text" readonly hidden>' +
-      '<div class="sheet-actions">' +
-        '<button type="button" id="act-play" disabled>바로 풀기</button>' +
-        '<button type="button" class="primary" id="act-copy" disabled>링크 복사</button>' +
-      '</div>'
-    );
-
-    var input = document.getElementById('cw');
-    var status = document.getElementById('cs');
-    var linkBox = document.getElementById('cl');
-    var playBtn = document.getElementById('act-play');
-    var copyBtn = document.getElementById('act-copy');
-    var word = null;   // 지금 유효한 단어
-    var seq = 0;       // 사전 로딩이 늦게 끝난 결과가 최신 입력을 덮지 않게
-
-    function setState(msg, cls, ok) {
-      status.textContent = msg;
-      status.className = 'compose-status' + (cls ? ' ' + cls : '');
-      word = ok || null;
-      playBtn.disabled = copyBtn.disabled = !word;
-      if (word) {
-        linkBox.value = linkFor(word);
-        linkBox.hidden = false;
-      } else {
-        linkBox.hidden = true;
-      }
-    }
-
-    function check() {
-      var w = input.value.trim();
-      var my = ++seq;
-      if (!w) { setState('한글 명사를 입력하세요', ''); return; }
-      if (!/^[가-힣]+$/.test(w)) { setState('완성된 한글 단어만 됩니다', 'bad'); return; }
-      var jamo = window.Jamo.decompose(w);
-      if (!jamo) { setState('ㅙ · ㅞ 가 들어간 단어는 낼 수 없어요', 'bad'); return; }
-      if (LENGTHS.indexOf(jamo.length) < 0) {
-        setState('자모 ' + jamo.length + '칸 — ' + LENGTH_RANGE + '칸만 됩니다', 'bad');
-        return;
-      }
-      setState('확인하는 중…', '');
-      window.Dict.load(jamo.length).then(function (dict) {
-        if (my !== seq) return;
-        if (dict.valid.has(jamo)) setState('자모 ' + jamo.length + '칸 · 낼 수 있어요', 'good', w);
-        else setState('사전에 없는 명사예요', 'bad');
-      }).catch(function () {
-        if (my === seq) setState('사전을 불러오지 못했습니다', 'bad');
-      });
-    }
-
-    input.addEventListener('input', check);
-    input.addEventListener('keydown', function (e) {
-      if (e.key === 'Enter' && word) copyBtn.click();
-    });
-    input.focus();
-
-    copyBtn.addEventListener('click', function () {
-      if (word) copyThen(linkFor(word), '출제 링크를 복사했어요');
-    });
-
-    playBtn.addEventListener('click', function () {
-      if (!word) return;
-      var w = word;
-      closeSheet();
-      try { history.replaceState(null, '', linkFor(w)); } catch (e) { /* file:// */ }
-      start(window.Jamo.decompose(w).length, w, null, true);
-    });
-  }
-
-  function showHelp() {
-    openSheet(
-      '<h2>규칙</h2>' +
-      '<ol>' +
-        '<li>자모 ' + LENGTH_RANGE + '개 중 하나를 골라 그 길이의 명사를 맞힙니다. 예: 안녕 → ㅇㅏㄴㄴㅕㅇ (6칸)</li>' +
-        '<li>기회는 ' + MAX_TRIES + '번. 추측하는 단어도 사전에 있는 명사여야 합니다.</li>' +
-        '<li>쌍자음 · 겹받침 · 복합모음은 기본 자모를 이어서 칩니다. ㄲ=ㄱㄱ, ㄺ=ㄹㄱ, ㅐ=ㅏㅣ, ㅘ=ㅗㅏ</li>' +
-        '<li>ㅙ · ㅞ 가 들어간 단어는 나오지 않습니다.</li>' +
-      '</ol>' +
-      '<div class="legend">' +
-        '<span style="background:var(--ok)">ㅇ</span>' +
-        '<span style="background:var(--warn)">ㅏ</span>' +
-        '<span style="background:var(--absent)">ㅋ</span>' +
-      '</div>' +
-      '<p style="text-align:center;font-size:13px">자리까지 맞음 · 들어있지만 다른 자리 · 없음</p>' +
-      '<div class="sheet-actions">' +
-        '<button type="button" id="act-compose2">직접 출제</button>' +
-        '<button type="button" class="primary" id="act-link2">지금 단어 링크 복사</button>' +
-      '</div>' +
-      '<p style="font-size:12px;color:#8e8e93;text-align:center;margin-top:16px">' +
-        '단어 출처: 국립국어원 한국어기초사전</p>'
-    );
-    document.getElementById('act-link2').addEventListener('click', function () {
-      copyThen(puzzleLink(), '문제 링크를 복사했어요');
-    });
-    document.getElementById('act-compose2').addEventListener('click', showCompose);
-  }
-
   /* 게임 진행 ------------------------------------------------------------- */
-
-  function paintTitle() {
-    titleEl.textContent = shared ? TITLE_SHARED : TITLE;
-  }
-
-  function markChips(n) {
-    Array.prototype.forEach.call(lengths.children, function (b) {
-      b.setAttribute('aria-pressed', String(Number(b.dataset.len) === n));
-    });
-  }
 
   /** 같은 길이로 새 단어를 뽑는다. 공유받은 문제를 풀던 중이면 거기서 빠져나온다. */
   function newGame() {
@@ -596,11 +146,11 @@
     shared = false;
     sharedResult = false;
     authored = false;
-    clearHash();
+    Share.clearHash();
     paintTitle();
-    buildBoard();
-    paintKeyboard();
-    paintBoard();
+    Board.build(game);
+    Board.paintKeyboard(game);
+    repaint();
   }
 
   /**
@@ -609,10 +159,10 @@
    */
   function start(n, word, resultCode, authoredWord) {
     markChips(n);
-    if (!word) window.Store.saveLength(n);
+    if (!word) global.Store.saveLength(n);
     submitBtn.textContent = '사전 불러오는 중…';
-    return window.Dict.load(n).then(function (dict) {
-      game = new window.Game(dict);
+    return global.Dict.load(n).then(function (dict) {
+      game = new global.Game(dict);
       shared = false;
       sharedResult = false;
       authored = Boolean(authoredWord);
@@ -620,74 +170,91 @@
         if (game.reset(word)) {
           shared = !authored;
         } else {
-          toast('링크의 단어를 열 수 없어 새 단어로 시작합니다');
-          clearHash();
+          Sheet.toast('링크의 단어를 열 수 없어 새 단어로 시작합니다');
+          Share.clearHash();
         }
       }
       if (resultCode && game.restoreResult(resultCode)) sharedResult = true;
       paintTitle();
-      buildBoard();
-      paintKeyboard();
-      paintBoard();
+      Board.build(game);
+      Board.paintKeyboard(game);
+      repaint();
       if (sharedResult) setTimeout(showResult, 0);
     }).catch(function () {
       submitBtn.textContent = '사전을 불러오지 못했습니다';
     });
   }
 
+  function playWord(word) {
+    Share.replaceHash(Share.linkFor(word));
+    start(global.Jamo.decompose(word).length, word, null, true);
+  }
+
   /** 해시에 문제가 실려 있으면 그 판으로 시작한다. 아니면 저장된 길이로 새 판. */
   function startFromHash() {
-    var resultCode = resultHashCode();
+    var resultCode = Share.resultCode();
     if (resultCode) {
       var resultWord = null;
       try {
-        resultWord = JSON.parse(window.Game.decode(resultCode)).answer;
+        resultWord = JSON.parse(global.Game.decode(resultCode)).answer;
       } catch (e) { resultWord = null; }
-      var resultJamo = resultWord && window.Jamo.decompose(resultWord);
+      var resultJamo = resultWord && global.Jamo.decompose(resultWord);
       if (resultJamo && LENGTHS.indexOf(resultJamo.length) >= 0) {
         return start(resultJamo.length, resultWord, resultCode);
       }
-      toast('결과 링크가 올바르지 않아요');
-      clearHash();
+      Sheet.toast('결과 링크가 올바르지 않아요');
+      Share.clearHash();
     }
-    var code = hashCode();
+    var code = Share.puzzleCode();
     if (code) {
       var word = null;
-      try { word = window.Game.decode(code); } catch (e) { word = null; }
-      var jamo = word && window.Jamo.decompose(word);
+      try { word = global.Game.decode(code); } catch (e) { word = null; }
+      var jamo = word && global.Jamo.decompose(word);
       if (jamo && LENGTHS.indexOf(jamo.length) >= 0) return start(jamo.length, word);
-      toast('링크가 올바르지 않아요');
-      clearHash();
+      Sheet.toast('링크가 올바르지 않아요');
+      Share.clearHash();
     }
-    var saved = window.Store.length();
+    var saved = global.Store.length();
     return start(LENGTHS.indexOf(saved) >= 0 ? saved : DEFAULT_LENGTH);
   }
+
+  /* 배선 ------------------------------------------------------------------ */
 
   lengths.addEventListener('click', function (e) {
     var b = e.target.closest('button[data-len]');
     if (!b || locked) return;
-    clearHash();
+    Share.clearHash();
     start(Number(b.dataset.len));
   });
 
   submitBtn.addEventListener('click', onSubmit);
+
   document.getElementById('btn-new').addEventListener('click', function () {
     if (game && !locked) newGame();
   });
-  document.getElementById('btn-compose').addEventListener('click', showCompose);
-  document.getElementById('btn-help').addEventListener('click', showHelp);
-  scoreboardBtn.addEventListener('click', function () { showScoreboard('daily'); });
+  document.getElementById('btn-compose').addEventListener('click', function () {
+    Compose.show(playWord);
+  });
+  document.getElementById('btn-help').addEventListener('click', function () {
+    Compose.showHelp({
+      play: playWord,
+      copyLink: function () { Share.copyThen(Share.linkFor(game.answer), '문제 링크를 복사했어요'); }
+    });
+  });
+  document.getElementById('btn-scoreboard').addEventListener('click', function () {
+    Score.showRanking('daily');
+  });
 
   // 같은 탭에 링크를 붙여넣는 경우
-  window.addEventListener('hashchange', function () {
-    if (hashCode() || resultHashCode()) { closeSheet(); startFromHash(); }
+  global.addEventListener('hashchange', function () {
+    if (Share.puzzleCode() || Share.resultCode()) { Sheet.close(); startFromHash(); }
   });
 
   // 회전, 주소창 접힘, 데스크톱 창 크기 변경
-  window.addEventListener('resize', sizeBoard);
-  window.addEventListener('orientationchange', sizeBoard);
+  global.addEventListener('resize', Board.size);
+  global.addEventListener('orientationchange', Board.size);
 
   buildLengths();
-  buildKeyboard();
+  Board.buildKeyboard({ type: onType, back: onBack });
   startFromHash();
-})();
+})(window);

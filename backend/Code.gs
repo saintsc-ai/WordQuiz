@@ -98,12 +98,16 @@ function readRows_(sheet) {
   });
 }
 
+/*
+ * 오늘 순위. 판마다 새 단어를 받아 몇 번이든 다시 풀 수 있는 게임이라
+ * '같은 문제를 누가 잘 풀었나'를 셀 수 없다. 사람별로 오늘 점수를 합산한다.
+ */
 function daily_(rows, date, length) {
   var filtered = rows.filter(function (row) {
     return (rowDate_(row) === date || row.puzzleDate === date) &&
       (!length || row.jamoLength === Number(length));
   });
-  return { ok: true, rows: filtered.sort(sortScore_).slice(0, 100).map(publicRow_) };
+  return totals_(filtered);
 }
 
 function rowDate_(row) {
@@ -133,6 +137,16 @@ function normalizeDate_(value) {
 }
 
 function overall_(rows) {
+  return totals_(rows);
+}
+
+/*
+ * 사람별 합계. clientId 는 익명 식별자라 집계 키로만 쓰고 응답에 싣지 않는다.
+ * total 을 함께 내보내 상위 LIMIT 명만 보여 준다는 사실을 화면이 숨기지 않게 한다.
+ */
+var LIMIT = 100;
+
+function totals_(rows) {
   var totals = {};
   rows.forEach(function (row) {
     var key = row.clientId;
@@ -146,16 +160,16 @@ function overall_(rows) {
       if (totals[key].bestTime === null || row.elapsedSeconds < totals[key].bestTime) totals[key].bestTime = row.elapsedSeconds;
     }
   });
-  // clientId 는 익명 식별자라 응답에 싣지 않는다. 집계 키로만 쓴다.
-  return { ok: true, rows: Object.keys(totals).map(function (key) { return totals[key]; }).sort(function (a, b) { return b.score - a.score; }).slice(0, 100) };
+  var all = Object.keys(totals).map(function (key) { return totals[key]; }).sort(sortTotals_);
+  return { ok: true, total: all.length, rows: all.slice(0, LIMIT) };
 }
 
-function sortScore_(a, b) {
-  return b.score - a.score || a.elapsedSeconds - b.elapsedSeconds || a.attempts - b.attempts;
-}
+// 총점 -> 적은 판수 -> 빠른 최고 기록. 같은 점수면 판을 덜 쓴 쪽이 위로 간다.
+var NO_TIME = 1e9;   // 아직 이긴 적이 없으면 맨 뒤로
 
-function publicRow_(row) {
-  return { nickname: row.nickname, score: row.score, attempts: row.attempts, elapsedSeconds: row.elapsedSeconds, won: row.won, jamoLength: row.jamoLength };
+function sortTotals_(a, b) {
+  return b.score - a.score || a.games - b.games ||
+    (a.bestTime === null ? NO_TIME : a.bestTime) - (b.bestTime === null ? NO_TIME : b.bestTime);
 }
 
 function today_() {

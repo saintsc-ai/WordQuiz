@@ -17,6 +17,7 @@
    - 🟨 그 자모는 들어있지만 자리가 다름
    - ⬜ 정답에 없는 자모
 6. 기회는 **5번**.
+7. 단어는 판마다 새로 뽑습니다. **몇 번이든 다시 풀 수 있습니다.**
 
 ## 자판과 자모 분해
 
@@ -81,11 +82,27 @@ python -m http.server 8000
 `index.html` 을 브라우저에서 직접 열어도 동작합니다. (데이터를 `fetch` 가 아니라
 `<script>` 주입으로 읽기 때문)
 
+## 화면 테마
+
+머리말의 **⋯** 안에서 **시스템 · 밝게 · 어둡게** 를 고릅니다. 고르지 않으면 OS 설정을
+따라가고, OS 설정이 바뀌면 새로고침 없이 따라 바뀝니다.
+
+색은 전부 CSS 변수로만 씁니다. 토큰 이름과 팔레트, 명도 대비 기준은
+[STYLE_GUIDE.md](STYLE_GUIDE.md) 에 있고 검사는 스크립트가 합니다.
+
+```bash
+python tools/check_css.py
+```
+
 ### 스코어보드 연결
 
 스코어보드는 Google Sheets와 Google Apps Script Web App을 선택적으로 연결할 수
 있습니다. 자세한 설정은 [SCOREBOARD_SETUP.md](SCOREBOARD_SETUP.md)를 보세요.
 URL을 설정하지 않으면 게임과 결과 공유만 사용할 수 있습니다.
+
+판마다 다른 단어를 풀기 때문에 '같은 문제를 누가 잘 풀었나'를 셀 수 없습니다.
+그래서 순위는 **사람별 점수 합계** 입니다. 오늘 순위는 오늘 푼 판의 합,
+누적 순위는 전체 합입니다.
 
 ## 단어 데이터 다시 만들기
 
@@ -118,12 +135,18 @@ python tools/check_sync.py     # 규칙이 어긋나지 않았는지 확인
 ```
 index.html          화면 뼈대
 css/style.css       다크 테마
+js/theme.js         밝게 / 어둡게 (head 에서 먼저 실행)
 js/store.js         localStorage (길이 · 닉네임 · 익명 ID)
 js/jamo.js          한글 ↔ 자판 입력열 변환
 js/dict.js          단어 데이터 로딩 · 검증, 자모 길이 목록
 js/game.js          게임 상태와 채점 (DOM 비의존)
 js/scoreboard.js    Apps Script 스코어보드 클라이언트
-js/ui.js            렌더링과 입력 처리
+js/ui-sheet.js      시트(모달) 셸 · 포커스 관리 · 토스트
+js/ui-share.js      링크 만들기 · 해시 읽기 · 클립보드
+js/ui-board.js      보드와 자판 렌더링
+js/ui-score.js      결과 시트 · 순위 시트
+js/ui-compose.js    직접 출제 시트 · 규칙 시트
+js/ui.js            조립 · 입력 처리 · 해시 라우팅
 tests/              브라우저에서 여는 테스트
 tools/              사전 내려받기 · 가공 · 검사 스크립트
 data/               생성된 단어 데이터
@@ -135,6 +158,7 @@ data/               생성된 단어 데이터
 
 ```bash
 python tools/check_sync.py   # 두 벌이 어긋나지 않았는지 검사
+python tools/check_css.py    # 색 토큰과 명도 대비 검사
 ```
 
 ## 테스트
