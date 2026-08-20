@@ -65,7 +65,8 @@ function readRows_(sheet) {
 
 function daily_(rows, date, length) {
   var filtered = rows.filter(function (row) {
-    return rowDate_(row) === date && (!length || row.jamoLength === Number(length));
+    return (rowDate_(row) === date || normalizeDate_(row.puzzleDate) === date) &&
+      (!length || row.jamoLength === Number(length));
   });
   return { ok: true, rows: filtered.sort(sortScore_).slice(0, 100).map(publicRow_) };
 }
@@ -78,6 +79,14 @@ function rowDate_(row) {
     }
   }
   return row.puzzleDate;
+}
+
+function normalizeDate_(value) {
+  if (!value) return '';
+  var text = String(value);
+  var match = text.match(/(20\d{2})\D(\d{1,2})\D(\d{1,2})/);
+  if (!match) return text.slice(0, 10);
+  return match[1] + '-' + ('0' + match[2]).slice(-2) + '-' + ('0' + match[3]).slice(-2);
 }
 
 function overall_(rows) {
