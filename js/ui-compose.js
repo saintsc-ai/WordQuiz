@@ -77,12 +77,16 @@
     });
 
     copyBtn.addEventListener('click', function () {
-      if (word) Share.copyThen(Share.linkFor(word), '출제 링크를 복사했어요');
+      if (!word) return;
+      // 이 링크로 내가 다시 들어와도 출제한 문제로 알아보게 남겨 둔다.
+      global.Store.rememberAuthored(word);
+      Share.copyThen(Share.linkFor(word), '출제 링크를 복사했어요');
     });
 
     playBtn.addEventListener('click', function () {
       if (!word) return;
       var w = word;
+      global.Store.rememberAuthored(w);
       Sheet.close();
       onPlay(w);
     });

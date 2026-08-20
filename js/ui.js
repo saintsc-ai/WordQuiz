@@ -210,7 +210,10 @@
       var word = null;
       try { word = global.Game.decode(code); } catch (e) { word = null; }
       var jamo = word && global.Jamo.decompose(word);
-      if (jamo && LENGTHS.indexOf(jamo.length) >= 0) return start(jamo.length, word);
+      // 내가 낸 단어를 링크로 다시 여는 경우. 정답을 아니까 점수에 넣지 않는다.
+      if (jamo && LENGTHS.indexOf(jamo.length) >= 0) {
+        return start(jamo.length, word, null, global.Store.isAuthored(word));
+      }
       Sheet.toast('링크가 올바르지 않아요');
       Share.clearHash();
     }
