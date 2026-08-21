@@ -74,6 +74,17 @@
     t.ok('사전에 없는 단어로는 못 깐다', g.reset('노래') === false);
     t.ok('실패해도 이전 판이 유지된다', g.answer === '사랑');
 
+    /* ── 시계 ──────────────────────────────────── */
+    g.reset('사랑');
+    t.ok('판을 깔았다고 시작한 것은 아니다', g.started() === false);
+    t.eq('시작 전에는 걸린 시간이 0', g.elapsedSeconds(), 0);
+    g.type('ㅅ');
+    t.ok('첫 자모를 치면 시작', g.started() === true);
+    g.back();
+    t.ok('지워도 시작한 것은 그대로', g.started() === true);
+    g.reset('사랑');
+    t.ok('새 판을 깔면 다시 시작 전', g.started() === false);
+
     g.reset('사랑');
     t.eq('처음엔 입력이 비어 있다', g.current, '');
     t.eq('덜 채우고 제출하면 short', g.submit(), { ok: false, reason: 'short' });

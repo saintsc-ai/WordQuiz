@@ -14,6 +14,7 @@
   var Compose = global.UICompose;
 
   var LENGTHS = global.Dict.LENGTHS;
+  var MAX_TRIES = global.Game.MAX_TRIES;
   var DEFAULT_LENGTH = 6;
   var TITLE = '단어 퍼즐';
   var TITLE_SHARED = '공유받은 단어';
@@ -143,6 +144,42 @@
 
   /* 게임 진행 ------------------------------------------------------------- */
 
+  /*
+   * 풀던 판을 버리고 다른 판으로 가려는 참인가.
+   * 첫 자모를 친 뒤에만 센다. 판을 깔아 두기만 하고 ↻ 를 누른 것은 그만둔 게 아니다.
+   * 시계가 가기 시작하는 시점과 같다(js/game.js 의 started).
+   * 닉네임을 정해 둔 사람만 해당한다 — 이름이 없으면 남길 곳이 없다.
+   */
+  function quitting() {
+    return game && game.status === 'play' && game.started() &&
+      global.WordQuizScoreboard.nickname() &&
+      Score.recordable({ sharedResult: sharedResult, authored: authored,
+                         scored: global.Store.isScored(game.answer) });
+  }
+
+  /** 그만두겠다고 하면 실패로 남기고 go() 를 부른다. 아니면 아무 일도 없다. */
+  function confirmQuit(go) {
+    if (!quitting()) { go(); return; }
+    var quit = game;   // 확인하는 사이에 판이 바뀔 수 있다
+    Sheet.open(
+      '<h2>그만둘까요?</h2>' +
+      '<p class="hint">지금 그만두면 이 판은 <b>실패로 기록</b>돼요.<br>' +
+        '남은 기회는 ' + (MAX_TRIES - quit.rows.length) + '번입니다.</p>' +
+      '<div class="sheet-actions">' +
+        '<button type="button" id="act-quit">그만두기</button>' +
+        '<button type="button" class="primary" id="act-keep">계속 풀기</button>' +
+      '</div>'
+    );
+    document.getElementById('act-keep').addEventListener('click', Sheet.close);
+    document.getElementById('act-quit').addEventListener('click', function () {
+      Sheet.close();
+      Score.record(quit, global.WordQuizScoreboard.nickname())
+        .then(function () { Sheet.toast('실패로 기록했어요'); })
+        .catch(function () { Sheet.toast('기록하지 못했어요'); });
+      go();
+    });
+  }
+
   /** 같은 길이로 새 단어를 뽑는다. 공유받은 문제를 풀던 중이면 거기서 빠져나온다. */
   function newGame() {
     if (!game) return;
@@ -230,14 +267,17 @@
   lengths.addEventListener('click', function (e) {
     var b = e.target.closest('button[data-len]');
     if (!b || locked) return;
-    Share.clearHash();
-    start(Number(b.dataset.len));
+    var n = Number(b.dataset.len);
+    confirmQuit(function () {
+      Share.clearHash();
+      start(n);
+    });
   });
 
   submitBtn.addEventListener('click', onSubmit);
 
   document.getElementById('btn-new').addEventListener('click', function () {
-    if (game && !locked) newGame();
+    if (game && !locked) confirmQuit(newGame);
   });
   // 직접 출제는 ⋯ 시트 안에 그대로 있다. 머리말 자리는 테마가 쓴다.
   var themeBtn = document.getElementById('btn-theme');

@@ -79,7 +79,7 @@
     this.current = '';     // 입력 중인 자모열
     this.keyState = {};    // 자모 -> ok|warn|off (좋은 쪽이 이긴다)
     this.status = 'play';  // play | win | lose
-    this.startedAt = Date.now();
+    this.startedAt = null;   // 첫 입력 때 찍는다. 판만 깔아 두고 딴 데 보면 시계는 안 간다.
     this.finishedAt = null;
     return true;
   };
@@ -87,8 +87,14 @@
   Game.prototype.type = function (key) {
     if (this.status !== 'play') return false;
     if (this.current.length >= this.length) return false;
+    if (this.startedAt === null) this.startedAt = Date.now();
     this.current += key;
     return true;
+  };
+
+  /** 첫 자모를 친 적이 있는가. 시계도 여기서부터 가고, 그만두면 실패로 남는 것도 이때부터다. */
+  Game.prototype.started = function () {
+    return this.startedAt !== null;
   };
 
   Game.prototype.back = function () {
@@ -130,6 +136,7 @@
   };
 
   Game.prototype.elapsedSeconds = function () {
+    if (this.startedAt === null) return 0;
     var end = this.finishedAt || Date.now();
     return Math.max(0, Math.round((end - this.startedAt) / 1000));
   };

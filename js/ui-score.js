@@ -174,6 +174,34 @@
     });
   }
 
+  /* 등록 ------------------------------------------------------------------ */
+
+  /**
+   * 점수를 시트에 남긴다. 이긴 판이면 점수가, 중간에 그만둔 판이면 0점이 간다.
+   * 서버가 중복이라 답해도 이 브라우저가 등록을 시도한 단어인 것은 같으므로
+   * 기억해 둔다. 다음부터 무작위로 뽑지도, 링크로 열어도 등록하지도 않는다.
+   */
+  function record(game, nickname) {
+    return global.WordQuizScoreboard.submit({
+      nickname: nickname,
+      puzzleId: game.code(),
+      jamoLength: game.length,
+      attempts: game.rows.length,
+      score: game.score(),
+      elapsedSeconds: game.elapsedSeconds(),
+      won: game.status === 'win'
+    }).then(function (data) {
+      global.Store.rememberScored(game.answer);
+      return data;
+    });
+  }
+
+  /** 지금 판을 시트에 남길 수 있는 상태인가. */
+  function recordable(ctx) {
+    return global.WordQuizScoreboard.configured() &&
+      !ctx.sharedResult && !ctx.authored && !ctx.scored;
+  }
+
   /* 결과 ------------------------------------------------------------------ */
 
   /**
@@ -241,36 +269,36 @@
       showRanking('daily', 'total');
     });
 
-    document.getElementById('act-score').addEventListener('click', function () {
-      var name = document.getElementById('score-name').value.trim();
-      var status = document.getElementById('score-status');
-      if (!name) { status.textContent = '닉네임을 입력해 주세요.'; return; }
-      if (!global.WordQuizScoreboard.configured()) {
-        status.textContent = '스코어보드 연결이 아직 설정되지 않았어요.';
-        return;
-      }
-      var button = document.getElementById('act-score');
+    var button = document.getElementById('act-score');
+    var status = document.getElementById('score-status');
+
+    function send(name) {
       button.disabled = true;
       status.textContent = '등록하는 중…';
-      global.WordQuizScoreboard.submit({
-        nickname: name,
-        puzzleId: game.code(),
-        jamoLength: game.length,
-        attempts: game.rows.length,
-        score: game.score(),
-        elapsedSeconds: game.elapsedSeconds(),
-        won: game.status === 'win'
-      }).then(function (data) {
-        // 서버가 중복이라 답해도 이 브라우저가 등록을 시도한 단어인 것은 같다.
-        // 기억해 두면 다음부터 무작위로 뽑지도, 링크로 열어도 등록하지도 않는다.
-        global.Store.rememberScored(game.answer);
+      record(game, name).then(function (data) {
         status.textContent = data.duplicate ? '이미 등록한 기록이에요.' : '점수가 등록됐어요.';
       }).catch(function () {
         button.disabled = false;
         status.textContent = '등록하지 못했어요.';
       });
+    }
+
+    button.addEventListener('click', function () {
+      var name = document.getElementById('score-name').value.trim();
+      if (!name) { status.textContent = '닉네임을 입력해 주세요.'; return; }
+      if (!global.WordQuizScoreboard.configured()) {
+        status.textContent = '스코어보드 연결이 아직 설정되지 않았어요.';
+        return;
+      }
+      send(name);
     });
+
+    // 닉네임을 이미 정해 뒀고 이긴 판이면 손대지 않아도 올라간다.
+    // 진 판은 자랑거리가 아니라 그대로 두고, 원하면 버튼으로 올린다.
+    if (won && !blocked && recordable(ctx) && global.WordQuizScoreboard.nickname()) {
+      send(global.WordQuizScoreboard.nickname());
+    }
   }
 
-  global.UIScore = { showResult: showResult, showRanking: showRanking };
+  global.UIScore = { showResult: showResult, showRanking: showRanking, record: record, recordable: recordable };
 })(window);
