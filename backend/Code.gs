@@ -18,7 +18,11 @@ function sheet_() {
 }
 
 function json_(value) {
-  return ContentService.createTextOutput(JSON.stringify(value))
+  return raw_(JSON.stringify(value));
+}
+
+function raw_(text) {
+  return ContentService.createTextOutput(text)
     .setMimeType(ContentService.MimeType.JSON);
 }
 
@@ -36,15 +40,53 @@ function json_(value) {
  */
 var MODES = { total: 1, time: 1, score: 1 };
 
+/*
+ * 시트를 여는 데만 2~3초가 걸린다. 순위는 등록이 있을 때만 바뀌므로
+ * 계산해 둔 결과를 CacheService 에 담아 두고, 한 번 읽을 때 여섯 조합
+ * (기간 2 x 방식 3) 을 모두 만들어 둔다. 탭을 바꿔도 다시 열지 않는다.
+ * 등록이 들어오면 doPost 가 지운다.
+ */
+var CACHE_TTL = 300;   // 초. 지우기를 놓쳐도 이만큼이면 따라잡는다.
+
+function cacheKey_(action, mode, date) {
+  return 'rank:' + action + ':' + mode + ':' + date;
+}
+
+function cacheKeys_(date) {
+  var keys = [];
+  ['daily', 'overall'].forEach(function (action) {
+    Object.keys(MODES).forEach(function (mode) { keys.push(cacheKey_(action, mode, date)); });
+  });
+  return keys;
+}
+
 function doGet(e) {
   var params = (e && e.parameter) || {};
   var mode = MODES[params.mode] ? params.mode : 'total';
-  var rows = readRows_(sheet_());
+  var action = (params.action || 'daily') === 'overall' ? 'overall' : 'daily';
+  var date = normalizeDate_(params.date) || today_();
 
-  if ((params.action || 'daily') !== 'overall') {
-    rows = daily_(rows, normalizeDate_(params.date) || today_(), params.length);
+  // length 로 거르는 건 화면이 쓰지 않는 길이다. 캐시를 더럽히지 않도록 그냥 계산한다.
+  if (params.length) {
+    var only = readRows_(sheet_());
+    if (action !== 'overall') only = daily_(only, date, params.length);
+    return json_(rank_(only, mode));
   }
-  return json_(rank_(rows, mode));
+
+  var cache = CacheService.getScriptCache();
+  var key = cacheKey_(action, mode, date);
+  var hit = cache.get(key);
+  if (hit) return raw_(hit);
+
+  var rows = readRows_(sheet_());
+  var todayRows = daily_(rows, date);
+  var made = {};
+  Object.keys(MODES).forEach(function (m) {
+    made[cacheKey_('daily', m, date)] = JSON.stringify(rank_(todayRows, m));
+    made[cacheKey_('overall', m, date)] = JSON.stringify(rank_(rows, m));
+  });
+  cache.putAll(made, CACHE_TTL);
+  return raw_(made[key]);
 }
 
 function doPost(e) {
@@ -74,6 +116,8 @@ function doPost(e) {
       Math.max(0, Number(data.elapsedSeconds) || 0),
       Boolean(data.won)
     ]);
+    // 새 기록이 났으니 계산해 둔 순위를 버린다. 다음 조회가 다시 만든다.
+    CacheService.getScriptCache().removeAll(cacheKeys_(puzzleDate));
     return json_({ ok: true, duplicate: false });
   } finally {
     lock.releaseLock();
