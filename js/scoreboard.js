@@ -5,7 +5,7 @@
   'use strict';
 
   // Paste the deployed Apps Script Web App URL here.
-  var API_URL = 'https://script.google.com/macros/s/AKfycbyyzDDH-N9PT9ZJy9ik1zn6fdTLhGgy_i9JlP2rvpkzeFosANIk4lj8WLGpojWUQ78Khw/exec';
+  var API_URL = 'https://script.google.com/macros/s/AKfycbwA_wMozj8mHCvR9RkKDHeAj5gVkJKld5G5UK_uVr002EZ4aX_6-7rbP_e20QhFQH3nfA/exec';
 
   // 시트를 여는 왕복이 몇 초 걸린다. 탭을 오갈 때마다 다시 부르지 않도록
   // 이번 세션 동안만 들고 있는다. 점수를 등록하면 버린다.
