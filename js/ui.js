@@ -242,6 +242,8 @@
       Board.build(game);
       Board.paintKeyboard(game);
       repaint();
+      // 판을 푸는 동안 순위를 미리 받아 둔다. ♛ 를 누를 때 기다리지 않게.
+      global.WordQuizScoreboard.prefetch('daily', { mode: 'total' });
       if (sharedResult) setTimeout(showResult, 0);
     }).catch(function () {
       submitBtn.textContent = '사전을 불러오지 못했습니다';

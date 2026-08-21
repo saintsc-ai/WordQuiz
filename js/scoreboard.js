@@ -62,16 +62,36 @@
     query.set('action', kind);
     var url = API_URL + '?' + query.toString();
 
+    // 결과가 아니라 Promise 를 담아 둔다. 미리 받는 중에 사용자가 순위를 열면
+    // 같은 요청을 또 보내지 않고 진행 중인 것을 같이 기다린다.
     var hit = rankCache[url];
-    if (hit && Date.now() - hit.at < RANK_TTL) return Promise.resolve(hit.data);
+    if (hit && Date.now() - hit.at < RANK_TTL) return hit.promise;
 
-    return request(url).then(function (data) {
-      rankCache[url] = { at: Date.now(), data: data };
-      return data;
+    var entry = { at: Date.now(), promise: null };
+    entry.promise = request(url);
+    // 실패한 것을 물고 있으면 다음 시도까지 막힌다. 캐시에서 지운다.
+    entry.promise.catch(function () {
+      if (rankCache[url] === entry) delete rankCache[url];
     });
+    rankCache[url] = entry;
+    return entry.promise;
+  }
+
+  /*
+   * 미리 받아 두기. 순위는 한 번 부르는 데 2~3초가 걸리는데, 그 대부분이
+   * Apps Script 의 요청당 고정 비용이라 서버를 손봐도 줄지 않는다.
+   * 대신 사용자가 기다리는 시점과 부르는 시점을 떼어 놓는다. 판을 시작할 때와
+   * 판이 끝났을 때 미리 불러 두면 ♛ 를 누를 때는 이미 캐시에 있다.
+   *
+   * 실패해도 조용히 넘어간다. 어차피 진짜로 열 때 다시 부른다.
+   */
+  function prefetch(kind, params) {
+    if (!configured()) return;
+    rankings(kind, params).catch(function () { /* 미리 받는 것뿐이다 */ });
   }
 
   global.WordQuizScoreboard = {
+    prefetch: prefetch,
     configured: configured,
     nickname: nickname,
     saveNickname: saveNickname,

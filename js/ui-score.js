@@ -294,13 +294,18 @@
     function send(name) {
       button.disabled = true;
       status.textContent = '등록하는 중…';
-      record(game, name).then(function (data) {
-        if (data.duplicate) { status.textContent = '이미 등록한 기록이에요.'; return; }
-        status.textContent = won ? '점수가 등록됐어요.' : '패배로 기록했어요.';
+      return record(game, name).then(function (data) {
+        status.textContent = data.duplicate ? '이미 등록한 기록이에요.' :
+          (won ? '점수가 등록됐어요.' : '패배로 기록했어요.');
       }).catch(function () {
         button.disabled = false;
         status.textContent = '등록하지 못했어요.';
       });
+    }
+
+    // 등록하면 화면 캐시가 비워지므로, 그 뒤에 미리 받아야 내 기록까지 담긴다.
+    function prefetchRanking() {
+      global.WordQuizScoreboard.prefetch('daily', { mode: 'total' });
     }
 
     button.addEventListener('click', function () {
@@ -319,7 +324,9 @@
      * 편이 이득이 된다. 승패가 다 남아야 판수와 승률이 말이 된다.
      */
     if (!blocked && recordable(ctx) && global.WordQuizScoreboard.nickname()) {
-      send(global.WordQuizScoreboard.nickname());
+      send(global.WordQuizScoreboard.nickname()).then(prefetchRanking);
+    } else {
+      prefetchRanking();
     }
   }
 
