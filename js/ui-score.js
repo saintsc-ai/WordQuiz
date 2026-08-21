@@ -28,7 +28,7 @@
   ];
 
   var MODES = [
-    { key: 'total', label: '누적 점수', caption: '총점 · 승리 / 판수' },
+    { key: 'total', label: '누적 점수', caption: '총점 · 승리 / 판수 · 이긴 판 평균' },
     { key: 'time', label: '타임어택', caption: '가장 빨리 푼 한 판' },
     { key: 'score', label: '점수어택', caption: '한 판 최고 점수' }
   ];
@@ -48,8 +48,25 @@
     return isFinite(n) ? n + '자모' : '';
   }
 
+  /*
+   * 누적 순위에만 두 번째 줄이 붙는다. 승률·평균 시도·평균 시간은
+   * '이긴 판'만 센 값이라 승률과 나란히 놓아야 뜻이 통한다.
+   * 타임어택·점수어택은 판 하나의 기록이라 평균이 성립하지 않는다.
+   */
+  function totalSub(row) {
+    var bits = [];
+    if (isFinite(Number(row.winRate))) bits.push(Number(row.winRate) + '%');
+    if (row.avgAttempts !== null && isFinite(Number(row.avgAttempts))) {
+      bits.push('평균 ' + Number(row.avgAttempts).toFixed(1) + '회');
+    }
+    if (row.avgSeconds !== null && isFinite(Number(row.avgSeconds))) {
+      bits.push(Share.formatTime(row.avgSeconds));
+    }
+    return bits.join(' · ');
+  }
+
   function rankingRow(row, index, mode) {
-    var primary, detail;
+    var primary, detail, sub = '';
     if (mode === 'time') {
       primary = Share.formatTime(row.elapsedSeconds);
       detail = [jamo(row), num(row.score, '점')].filter(Boolean).join(' · ');
@@ -63,12 +80,14 @@
     } else {
       primary = num(row.score, '점');
       detail = num(row.wins, '승') + ' / ' + num(row.games, '판');
+      sub = totalSub(row);
     }
-    return '<div class="ranking-row">' +
+    return '<div class="ranking-row' + (sub ? ' has-sub' : '') + '">' +
       '<span class="rank-number">' + (index + 1) + '</span>' +
       '<b>' + Share.escapeHtml(row.nickname) + '</b>' +
       '<span class="rank-score">' + primary + '</span>' +
       '<span class="rank-time">' + detail + '</span>' +
+      (sub ? '<span class="rank-sub">' + sub + '</span>' : '') +
     '</div>';
   }
 

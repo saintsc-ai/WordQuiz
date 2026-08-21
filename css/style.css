@@ -121,6 +121,25 @@ button { font: inherit; color: inherit; cursor: pointer; }
   color: var(--on-fill);
 }
 
+/* ── 시계 ─────────────────────────────────────────── */
+.statusbar {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 22px;
+  padding: 2px 10px 0;
+}
+.timer {
+  font-size: 13px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;   /* 숫자가 바뀌어도 폭이 흔들리지 않게 */
+  letter-spacing: .3px;
+  color: var(--app-text-muted);
+}
+/* 아직 첫 자모를 치기 전 — 시계가 안 가고 있다는 걸 옅게 알린다 */
+.timer.idle { opacity: .45; }
+.timer .penalty { color: var(--warn); }
+
 /* ── 보드 ─────────────────────────────────────────── */
 .board-wrap {
   flex: 1;
@@ -422,6 +441,14 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .rank-number { color: var(--app-text-muted); text-align: center; }
 .rank-score { color: var(--ok); font-weight: 800; }
 .rank-time { min-width: 56px; color: var(--app-text-muted); font-size: 12px; text-align: right; }
+/* 누적 순위는 두 줄. 승률·평균은 닉네임 아래로 흘린다. */
+.ranking-row.has-sub { row-gap: 2px; }
+.rank-sub {
+  grid-column: 2 / -1;
+  color: var(--app-text-faint);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
 .empty-rank { text-align: center; color: var(--app-text-muted) !important; }
 
 .legend { display: flex; gap: 6px; justify-content: center; margin: 10px 0 4px; }

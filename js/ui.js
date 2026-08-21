@@ -29,6 +29,7 @@
 
   var submitBtn = document.getElementById('btn-submit');
   var hintBtn = document.getElementById('btn-hint');
+  var timerEl = document.getElementById('timer');
   var lengths = document.getElementById('lengths');
   var titleEl = document.getElementById('title');
 
@@ -61,6 +62,18 @@
     titleEl.textContent = shared ? TITLE_SHARED : TITLE;
   }
 
+  /*
+   * 시계. 첫 자모를 치기 전에는 0:00 에서 멈춰 있고 옅게 보인다.
+   * 힌트를 봤으면 실제 시간 뒤에 얹힌 값을 따로 붙인다.
+   */
+  function paintTimer() {
+    if (!game) { timerEl.textContent = '0:00'; return; }
+    var extra = game.hintSecondsPenalty();
+    timerEl.innerHTML = Share.formatTime(game.baseSeconds()) +
+      (extra ? ' <span class="penalty">+' + Share.formatTime(extra) + '</span>' : '');
+    timerEl.className = 'timer' + (game.started() ? '' : ' idle');
+  }
+
   function paintHint() {
     hintBtn.disabled = !game || game.status !== 'play';
     hintBtn.textContent = game && game.hintsUsed ? '힌트 ' + game.hintsUsed : '힌트';
@@ -87,6 +100,7 @@
     Board.paint(game);
     paintSubmit();
     paintHint();
+    paintTimer();
   }
 
   /* 이미 점수를 등록한 단어. 답을 아는 것이라 무작위로 다시 내지 않는다. */
@@ -287,8 +301,8 @@
   hintBtn.addEventListener('click', function () {
     if (locked || !game || game.status !== 'play') return;
     Hint.show(game);
-    // 힌트를 봤는지는 시트 안에서 정해진다. 닫힌 뒤 버튼 글씨를 다시 그린다.
-    Sheet.onClose(paintHint);
+    // 힌트를 봤는지는 시트 안에서 정해진다. 닫힌 뒤 버튼 글씨와 시계를 다시 그린다.
+    Sheet.onClose(repaint);
   });
 
   document.getElementById('btn-new').addEventListener('click', function () {
@@ -325,6 +339,11 @@
   // 회전, 주소창 접힘, 데스크톱 창 크기 변경
   global.addEventListener('resize', Board.size);
   global.addEventListener('orientationchange', Board.size);
+
+  // 판이 도는 동안에만 다시 그린다. 끝났거나 아직 안 쳤으면 값이 안 변한다.
+  setInterval(function () {
+    if (game && game.status === 'play' && game.started()) paintTimer();
+  }, 500);
 
   buildLengths();
   Board.buildKeyboard({ type: onType, back: onBack });

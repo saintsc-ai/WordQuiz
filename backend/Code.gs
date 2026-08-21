@@ -207,22 +207,47 @@ function rank_(rows, mode) {
   return { ok: true, mode: mode, total: made.length, rows: made.slice(0, LIMIT) };
 }
 
-/** 누적 점수 — 사람별 합계. */
+/*
+ * 누적 점수 — 사람별 합계.
+ *
+ * 평균 시도와 평균 시간은 '이긴 판'만 센다. 진 판은 늘 5번을 다 쓰고 끝나
+ * 섞으면 시도 평균이 5쪽으로 눌리고, 시간도 풀어낸 속도를 나타내지 못한다.
+ * 대신 승률을 함께 보내 이긴 판만 센다는 사실이 가려지지 않게 한다.
+ */
 function totals_(rows) {
   var totals = {};
   rows.forEach(function (row) {
     var key = row.clientId;
-    if (!totals[key]) totals[key] = { nickname: row.nickname, score: 0, games: 0, wins: 0, bestTime: null };
+    if (!totals[key]) {
+      totals[key] = { nickname: row.nickname, score: 0, games: 0, wins: 0, bestTime: null,
+                      attemptSum: 0, secondSum: 0 };
+    }
+    var t = totals[key];
     // 닉네임을 바꾸면 최근 것을 따라간다. 행은 기록된 순서대로 들어 있다.
-    if (row.nickname) totals[key].nickname = row.nickname;
-    totals[key].score += row.score;
-    totals[key].games++;
+    if (row.nickname) t.nickname = row.nickname;
+    t.score += row.score;
+    t.games++;
     if (row.won) {
-      totals[key].wins++;
-      if (totals[key].bestTime === null || row.elapsedSeconds < totals[key].bestTime) totals[key].bestTime = row.elapsedSeconds;
+      t.wins++;
+      t.attemptSum += row.attempts;
+      t.secondSum += row.elapsedSeconds;
+      if (t.bestTime === null || row.elapsedSeconds < t.bestTime) t.bestTime = row.elapsedSeconds;
     }
   });
-  return Object.keys(totals).map(function (key) { return totals[key]; });
+
+  return Object.keys(totals).map(function (key) {
+    var t = totals[key];
+    return {
+      nickname: t.nickname,
+      score: t.score,
+      games: t.games,
+      wins: t.wins,
+      bestTime: t.bestTime,
+      winRate: t.games ? Math.round(t.wins * 100 / t.games) : 0,
+      avgAttempts: t.wins ? Math.round(t.attemptSum * 10 / t.wins) / 10 : null,
+      avgSeconds: t.wins ? Math.round(t.secondSum / t.wins) : null
+    };
+  });
 }
 
 /*
