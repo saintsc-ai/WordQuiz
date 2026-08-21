@@ -140,6 +140,63 @@
     var plain = new Game(dict);
     t.ok('skip 을 주지 않으면 전체에서 고른다', WORDS.indexOf(plain.answer) >= 0, plain.answer);
 
+    /* ── 힌트 ──────────────────────────────────── */
+    var h = new Game(dict);
+    h.reset('사랑');
+    t.eq('처음엔 힌트를 안 봤다', h.hintsUsed, 0);
+    t.eq('안 봤으면 점수도 시간도 안 깎인다', [h.hintScorePenalty(), h.hintSecondsPenalty()], [0, 0]);
+
+    var seen = [];
+    var w1 = h.hint();
+    t.ok('힌트가 나온다', typeof w1 === 'string' && w1.length > 0, w1);
+    t.ok('정답은 힌트로 안 나온다', w1 !== '사랑');
+    t.ok('힌트도 이 길이의 단어다', Jamo.decompose(w1).length === 5);
+    t.eq('본 횟수가 는다', h.hintsUsed, 1);
+    t.eq('5자모 한 번 = 5점 · 100초', [h.hintScorePenalty(), h.hintSecondsPenalty()], [5, 100]);
+    t.ok('힌트를 보면 시계가 시작된다', h.started() === true);
+    seen.push(w1);
+
+    var w2 = h.hint();
+    t.ok('두 번째도 나온다', typeof w2 === 'string', w2);
+    t.ok('앞서 본 것과 다르다', w2 !== w1);
+    t.eq('두 번 보면 두 배', [h.hintScorePenalty(), h.hintSecondsPenalty()], [10, 200]);
+    seen.push(w2);
+
+    t.eq('사전이 3개뿐이라 더는 없다', h.hint(), null);
+    t.eq('없으면 횟수도 안 는다', h.hintsUsed, 2);
+
+    // 이미 제출한 줄도 힌트에서 빠진다
+    var h2 = new Game(dict);
+    h2.reset('사랑');
+    'ㅎㅏㄴㅡㄹ'.split('').forEach(function (k) { h2.type(k); });
+    h2.submit();
+    var only = h2.hint();
+    t.ok('제출한 단어는 힌트로 안 나온다', only !== '하늘' && only !== '사랑', only);
+    t.eq('남은 하나가 나온다', only, '사과');
+
+    // 점수와 시간에 실제로 반영된다
+    var h3 = new Game(dict);
+    h3.reset('사랑');
+    'ㅅㅏㄹㅏㅇ'.split('').forEach(function (k) { h3.type(k); });
+    h3.submit();
+    t.eq('힌트 없이 1번에 맞히면 25점', h3.score(), 25);
+
+    var h4 = new Game(dict);
+    h4.reset('사랑');
+    h4.hint();
+    'ㅅㅏㄹㅏㅇ'.split('').forEach(function (k) { h4.type(k); });
+    h4.submit();
+    t.eq('힌트 한 번이면 5점 깎여 20점', h4.score(), 20);
+    t.ok('시간에도 100초가 얹힌다', h4.elapsedSeconds() - h4.baseSeconds() === 100);
+
+    // 점수가 음수로 내려가지 않는다
+    var h5 = new Game({ length: 5, valid: dict.valid, answers: WORDS.slice() });
+    h5.reset('사랑');
+    h5.hintsUsed = 99;
+    'ㅅㅏㄹㅏㅇ'.split('').forEach(function (k) { h5.type(k); });
+    h5.submit();
+    t.eq('아무리 깎여도 0점 아래로는 안 간다', h5.score(), 0);
+
     /* ── 결과 링크 복원 ─────────────────────────── */
     g.reset('사랑');
     'ㅅㅏㄹㅏㅇ'.split('').forEach(function (k) { g.type(k); });

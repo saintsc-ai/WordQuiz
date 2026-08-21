@@ -217,10 +217,32 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .key.warn { background: var(--warn); color: var(--on-warn); }
 .key.off { background: var(--absent); color: var(--on-fill); }
 
+.actions { display: flex; gap: 6px; align-items: stretch; margin: 14px 6px 0; }
+.hint-btn {
+  flex: 0 0 auto;
+  padding: 16px 14px;
+  border: 1px solid var(--app-border);
+  border-radius: 12px;
+  background: var(--app-sunken-bg);
+  color: var(--app-text-muted);
+  font-size: 14px;
+  font-weight: 700;
+}
+.hint-btn[disabled] { opacity: .45; }
+.hint-cost { text-align: center; }
+.hint-jamo {
+  text-align: center;
+  letter-spacing: 2px;
+  color: var(--app-text-muted);
+  font-size: 15px;
+  margin-bottom: 4px;
+}
+
 .submit {
   display: block;
-  width: calc(100% - 12px);
-  margin: 14px 6px 0;
+  flex: 1;
+  min-width: 0;
+  margin: 0;
   padding: 16px;
   border: 0;
   border-radius: 12px;

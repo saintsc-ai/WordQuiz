@@ -12,6 +12,7 @@
   var Share = global.UIShare;
   var Score = global.UIScore;
   var Compose = global.UICompose;
+  var Hint = global.UIHint;
 
   var LENGTHS = global.Dict.LENGTHS;
   var MAX_TRIES = global.Game.MAX_TRIES;
@@ -27,6 +28,7 @@
   };
 
   var submitBtn = document.getElementById('btn-submit');
+  var hintBtn = document.getElementById('btn-hint');
   var lengths = document.getElementById('lengths');
   var titleEl = document.getElementById('title');
 
@@ -59,6 +61,11 @@
     titleEl.textContent = shared ? TITLE_SHARED : TITLE;
   }
 
+  function paintHint() {
+    hintBtn.disabled = !game || game.status !== 'play';
+    hintBtn.textContent = game && game.hintsUsed ? '힌트 ' + game.hintsUsed : '힌트';
+  }
+
   function paintSubmit() {
     if (game.status !== 'play') {
       submitBtn.textContent = '결과 보기';
@@ -79,6 +86,7 @@
   function repaint() {
     Board.paint(game);
     paintSubmit();
+    paintHint();
   }
 
   /* 이미 점수를 등록한 단어. 답을 아는 것이라 무작위로 다시 내지 않는다. */
@@ -275,6 +283,13 @@
   });
 
   submitBtn.addEventListener('click', onSubmit);
+
+  hintBtn.addEventListener('click', function () {
+    if (locked || !game || game.status !== 'play') return;
+    Hint.show(game);
+    // 힌트를 봤는지는 시트 안에서 정해진다. 닫힌 뒤 버튼 글씨를 다시 그린다.
+    Sheet.onClose(paintHint);
+  });
 
   document.getElementById('btn-new').addEventListener('click', function () {
     if (game && !locked) confirmQuit(newGame);

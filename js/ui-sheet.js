@@ -23,6 +23,7 @@
 
   var lastFocused = null;
   var toastTimer = null;
+  var closeOnce = [];   // 다음 닫힘 때 한 번만 부를 것들
 
   function focusable() {
     return Array.prototype.filter.call(card.querySelectorAll(FOCUSABLE), function (el) {
@@ -56,6 +57,11 @@
     if (target && target.focus) target.focus();
   }
 
+  /** 다음에 시트가 닫힐 때 한 번 부른다. 시트를 열어 둔 쪽이 뒷정리할 자리다. */
+  function onClose(fn) {
+    closeOnce.push(fn);
+  }
+
   function close() {
     if (!isOpen()) return;
     sheet.hidden = true;
@@ -63,6 +69,10 @@
     // 시트를 열기 전에 보던 곳으로 돌려준다.
     if (lastFocused && lastFocused.focus && document.contains(lastFocused)) lastFocused.focus();
     lastFocused = null;
+
+    var pending = closeOnce;
+    closeOnce = [];
+    pending.forEach(function (fn) { fn(); });
   }
 
   /** Tab 이 시트 밖으로 나가지 않게 양 끝에서 되돌린다. */
@@ -88,6 +98,7 @@
   global.UISheet = {
     open: open,
     close: close,
+    onClose: onClose,
     isOpen: isOpen,
     trap: trap,
     toast: toast,

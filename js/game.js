@@ -6,6 +6,9 @@
 
   var MAX_TRIES = 5;
 
+  // 힌트 한 번의 값. 점수는 자모 수만큼 깎고, 시간은 자모 수 x 20초를 더한다.
+  var HINT_SECONDS_PER_JAMO = 20;
+
   /**
    * 워들 채점. 자리까지 맞으면 'ok', 들어있지만 자리가 다르면 'warn', 아니면 'off'.
    *
@@ -81,6 +84,8 @@
     this.status = 'play';  // play | win | lose
     this.startedAt = null;   // 첫 입력 때 찍는다. 판만 깔아 두고 딴 데 보면 시계는 안 간다.
     this.finishedAt = null;
+    this.hintsUsed = 0;
+    this.hintWords = [];     // 이번 판에 이미 보여 준 것. 같은 단어를 두 번 내주지 않는다.
     return true;
   };
 
@@ -90,6 +95,37 @@
     if (this.startedAt === null) this.startedAt = Date.now();
     this.current += key;
     return true;
+  };
+
+  /*
+   * 힌트. 이 길이의 단어가 어떤 것들인지 보여 줄 뿐 정답을 짚어 주지는 않는다.
+   * 정답과, 이미 제출한 줄과, 앞서 보여 준 힌트는 빼고 고른다.
+   * 더 내줄 단어가 없으면 null.
+   */
+  Game.prototype.hint = function () {
+    if (this.status !== 'play') return null;
+    var used = {};
+    used[this.answerJamo] = 1;
+    this.rows.forEach(function (row) { used[row.jamo] = 1; });
+    this.hintWords.forEach(function (w) { used[global.Jamo.decompose(w)] = 1; });
+
+    var pool = this.dict.answers.filter(function (w) {
+      var jamo = global.Jamo.decompose(w);
+      return jamo && !used[jamo];
+    });
+    if (!pool.length) return null;
+
+    // 힌트를 보는 것도 판에 손을 댄 것이다. 시계가 아직 안 갔다면 여기서 시작한다.
+    if (this.startedAt === null) this.startedAt = Date.now();
+    var word = pool[Math.floor(Math.random() * pool.length)];
+    this.hintWords.push(word);
+    this.hintsUsed++;
+    return word;
+  };
+
+  Game.prototype.hintScorePenalty = function () { return this.length * this.hintsUsed; };
+  Game.prototype.hintSecondsPenalty = function () {
+    return HINT_SECONDS_PER_JAMO * this.length * this.hintsUsed;
   };
 
   /** 첫 자모를 친 적이 있는가. 시계도 여기서부터 가고, 그만두면 실패로 남는 것도 이때부터다. */
@@ -129,16 +165,23 @@
     return { ok: true, marks: marks };
   };
 
-  /** 성공 점수. 빠른 성공일수록 회수 보너스가 커진다. */
+  /** 성공 점수. 빠른 성공일수록 회수 보너스가 커진다. 힌트를 봤으면 그만큼 깎는다. */
   Game.prototype.score = function () {
     if (this.status !== 'win') return 0;
-    return this.length * (MAX_TRIES + 1 - this.rows.length);
+    var earned = this.length * (MAX_TRIES + 1 - this.rows.length);
+    return Math.max(0, earned - this.hintScorePenalty());
   };
 
-  Game.prototype.elapsedSeconds = function () {
+  /** 실제로 흐른 시간. 힌트 값은 여기 안 들어간다. */
+  Game.prototype.baseSeconds = function () {
     if (this.startedAt === null) return 0;
     var end = this.finishedAt || Date.now();
     return Math.max(0, Math.round((end - this.startedAt) / 1000));
+  };
+
+  /** 기록에 남는 시간. 힌트를 본 값이 얹힌다. */
+  Game.prototype.elapsedSeconds = function () {
+    return this.baseSeconds() + this.hintSecondsPenalty();
   };
 
   /** 결과 공유용 이모지 격자. */
@@ -180,7 +223,8 @@
       answer: this.answer,
       status: this.status,
       rows: this.rows,
-      elapsedSeconds: this.elapsedSeconds()
+      elapsedSeconds: this.baseSeconds(),
+      hints: this.hintsUsed
     };
     return encode(JSON.stringify(payload));
   };
@@ -219,6 +263,8 @@
     this.status = payload.status;
     this.finishedAt = Date.now();
     this.startedAt = this.finishedAt - (Number(payload.elapsedSeconds) || 0) * 1000;
+    this.hintsUsed = Math.max(0, Math.floor(Number(payload.hints) || 0));
+    this.hintWords = [];
     this.keyState = {};
     this.rows.forEach(function (row) {
       row.marks.forEach(function (mark, index) {
