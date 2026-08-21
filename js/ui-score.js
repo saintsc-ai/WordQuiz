@@ -276,7 +276,8 @@
       button.disabled = true;
       status.textContent = '등록하는 중…';
       record(game, name).then(function (data) {
-        status.textContent = data.duplicate ? '이미 등록한 기록이에요.' : '점수가 등록됐어요.';
+        if (data.duplicate) { status.textContent = '이미 등록한 기록이에요.'; return; }
+        status.textContent = won ? '점수가 등록됐어요.' : '패배로 기록했어요.';
       }).catch(function () {
         button.disabled = false;
         status.textContent = '등록하지 못했어요.';
@@ -293,9 +294,12 @@
       send(name);
     });
 
-    // 닉네임을 이미 정해 뒀고 이긴 판이면 손대지 않아도 올라간다.
-    // 진 판은 자랑거리가 아니라 그대로 두고, 원하면 버튼으로 올린다.
-    if (won && !blocked && recordable(ctx) && global.WordQuizScoreboard.nickname()) {
+    /*
+     * 닉네임을 정해 둔 사람은 손대지 않아도 올라간다. 이긴 판만이 아니라 진 판도 남긴다.
+     * 그만둔 판이 실패로 남는 마당에 끝까지 푼 패배만 빼면, 질 것 같을 때 끝내지 않는
+     * 편이 이득이 된다. 승패가 다 남아야 판수와 승률이 말이 된다.
+     */
+    if (!blocked && recordable(ctx) && global.WordQuizScoreboard.nickname()) {
       send(global.WordQuizScoreboard.nickname());
     }
   }
