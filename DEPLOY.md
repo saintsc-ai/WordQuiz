@@ -59,40 +59,72 @@ docker run --rm -p 8080:8080 -v wordquiz-data:/data wordquiz:local
 
 ## 배포
 
+`brew` 탭(`drop-the-codes/tap`)은 없습니다(404). 설치는 공식 스크립트로 합니다.
+
 ```bash
-# 1. CLI 설치와 인증
-brew install drop-the-codes/tap/dtc
-dtc login
-
-# 2. 기록을 담을 볼륨 (5GB 면 차고 넘친다)
-dtc storage create wordquiz-data --size 5
-
-# 3. 이미지 올리기
-docker build -t wordquiz:latest .
-dtc image push wordquiz:latest
-
-# 4. 배포
-dtc deploy --name wordquiz \
-  --image wordquiz:latest \
-  --port 8080 \
-  --cpu 250m --memory 256Mi \
-  --replicas 1 \
-  --volume wordquiz-data:/data
+curl -fsSL https://dropthe.codes/install.sh -o /tmp/install.sh   # 받아서 읽어 보고
+sh /tmp/install.sh                                               # 실행한다
+export PATH="$HOME/.local/bin:$PATH"                             # 설치 위치가 PATH 에 없다
+dtc login                                                        # 대화형으로 API 키 입력
 ```
 
-`--replicas` 는 **1 로 둡니다.** Block 볼륨은 한 Pod 만 붙일 수 있고, SQLite 파일도
-하나뿐입니다.
+키를 `--api-key` 나 `DTC_API_KEY` 로 넘기면 셸 히스토리와 프로세스 목록에 남습니다.
+대화형 `dtc login` 이 가장 깔끔하고, 값은 `~/.dtc.yaml` 에 저장됩니다.
 
-도메인을 붙이려면 `--domain wordquiz.example.com` 을 더합니다.
+```bash
+# 1. 기록을 담을 볼륨 (5GB 면 차고 넘친다)
+dtc storage create wordquiz-data --size 5
+
+# 2. 이미지. 노드가 amd64 라 애플 실리콘에서는 --platform 을 반드시 준다.
+docker build --platform linux/amd64 -t wordquiz:v1 .
+dtc image push wordquiz:v1 wordquiz --tag v1
+#   → api.dropthe.codes/<계정>/wordquiz:v1
+
+# 3. 배포
+dtc deploy \
+  --name wordquiz \
+  --image api.dropthe.codes/<계정>/wordquiz:v1 \
+  --port 8080 \
+  --cpu 0.25 --memory 256 \
+  --replicas 1 \
+  --volume wordquiz-data:/data \
+  --env TZ=Asia/Seoul \
+  --wait
+```
+
+**`--platform linux/amd64` 를 빼먹지 마세요.** 애플 실리콘에서 그냥 빌드하면 arm64
+이미지가 올라가고 컨테이너가 `exec format error` 로 죽습니다.
+
+플래그 단위가 문서와 다릅니다. `--cpu` 는 `250m` 이 아니라 **vCPU 실수**(`0.25`),
+`--memory` 는 `256Mi` 가 아니라 **MB 정수**(`256`) 입니다.
+
+`--replicas` 는 **1 로 둡니다.** Block 볼륨은 ReadWriteOnce 라 한 Pod 만 붙을 수
+있고, SQLite 파일도 하나뿐입니다.
+
+도메인을 붙이려면 `--domain wordquiz.example.com` 을 더합니다. 안 주면
+`<name>-dtc-<해시>.dropthe.codes` 가 자동으로 붙고 HTTPS 도 같이 옵니다.
+
+프롬프트를 건너뛰는 플래그는 명령마다 이름이 다릅니다 — `dtc deploy --wait`,
+`dtc update -y`.
+
+이미지를 새로 올릴 때:
+
+```bash
+docker build --platform linux/amd64 -t wordquiz:v2 .
+dtc image push wordquiz:v2 wordquiz --tag v2
+dtc update wordquiz --image api.dropthe.codes/<계정>/wordquiz:v2 -y
+dtc restart wordquiz
+```
 
 확인:
 
 ```bash
-dtc logs wordquiz --tail 50     # 뜰 때 tz · db · root 를 한 줄로 찍는다
 dtc describe wordquiz
+curl -s https://<도메인>/healthz     # {"ok":true}
 ```
 
-`/healthz` 가 `{"ok":true}` 를 돌려줍니다.
+`dtc logs` 는 파드 이름을 못 찾아 실패할 때가 있습니다. 살아 있는지는 `/healthz` 로
+보는 편이 확실합니다.
 
 ## 환경 변수
 
@@ -114,30 +146,28 @@ dtc env set wordquiz TZ=Asia/Seoul
 
 ## 기존 기록 옮기기
 
-`dtc` 에는 컨테이너 안으로 파일을 넣거나 명령을 실행하는 수단이 없습니다. 그래서
-**기록을 이미지에 태워 보냅니다.** 볼륨이 비어 있을 때 서버가 씨앗 파일을 한 번
+`dtc` 에는 컨테이너 안으로 파일을 넣거나 명령을 돌리는 수단이 없습니다. 그래서
+**기록을 이미지에 태워 보냅니다.** 볼륨에 `DB_FILE` 이 없을 때 서버가 씨앗을 한 번
 복사하고, 그 뒤로는 쳐다보지 않습니다.
 
 ```bash
-# 1. Google Sheet > 파일 > 다운로드 > 쉼표로 구분된 값(.csv)
+# 1. 시트를 CSV 로. 링크가 열려 있으면 주소로 바로 받아진다.
+ID=<스프레드시트 ID>   # backend/Code.gs 의 SPREADSHEET_ID
+curl -fsSL "https://docs.google.com/spreadsheets/d/$ID/export?format=csv" -o results.csv
+#   막히면 시트에서 파일 > 다운로드 > 쉼표로 구분된 값(.csv)
 
-# 2. 로컬에서 SQLite 로 옮긴다 (Node 24 이상)
-DB_FILE=./seed/wordquiz.db node server/import-csv.js results.csv
-# 넣음 412 · 넘어감 0
+# 2. SQLite 로 옮긴다. 로컬에 Node 24 가 없으면 컨테이너로.
+docker run --rm -v "$PWD:/app" -w /app -e TZ=Asia/Seoul -e DB_FILE=/app/seed/wordquiz.db \
+  node:24-alpine node --disable-warning=ExperimentalWarning server/import-csv.js results.csv
+#   넣음 96 · 넘어감 2
 
-# 3. 이미지에 실어 배포한다
-docker build -t wordquiz:latest .
-dtc image push wordquiz:latest
-dtc deploy --name wordquiz --image wordquiz:latest --port 8080 \
-  --volume wordquiz-data:/data
+# 3. 이미지에 실어 올린다
+docker build --platform linux/amd64 -t wordquiz:v2 .
+dtc image push wordquiz:v2 wordquiz --tag v2
+dtc update wordquiz --image api.dropthe.codes/<계정>/wordquiz:v2 -y
 ```
 
-로컬에 Node 가 없으면 컨테이너로 돌립니다.
-
-```bash
-docker run --rm -v "$PWD:/app" -w /app node:24-alpine \
-  node --disable-warning=ExperimentalWarning server/import-csv.js results.csv
-```
+`DB_FILE` 을 꼭 넘기세요. 안 주면 `var/wordquiz.db` 로 들어가 씨앗이 빈 채로 올라갑니다.
 
 `seed/` 는 `.gitignore` 에 있고 `.dockerignore` 에는 없습니다. 커밋되지 않으면서
 이미지에는 들어갑니다.
@@ -146,9 +176,21 @@ docker run --rm -v "$PWD:/app" -w /app node:24-alpine \
 `2026. 8. 21` 처럼 내보낸 날짜도 읽습니다. 겹치는 `(clientId, puzzleId)` 는 유일
 인덱스가 걸러 내니 몇 번을 다시 돌려도 같은 판이 두 번 들어가지 않습니다.
 
-씨앗은 **볼륨이 빈 첫 배포에만** 듣습니다. 이미 돌고 있는 배포에 뒤늦게 넣으려면
-`/export` 로 지금 것을 받아 CSV 를 합친 뒤, 볼륨을 지우고 새 씨앗으로 다시 올려야
-합니다.
+### 이미 돌고 있는 배포에 씨앗을 넣기
+
+씨앗은 **`DB_FILE` 이 없을 때만** 듭니다. 이미 돌고 있다면 파일이 이미 있으니
+그냥 다시 띄워도 아무 일이 없습니다. `DB_FILE` 을 **새 이름으로 바꾸면** 그 자리에
+씨앗이 복사되고, 옛 파일은 볼륨에 그대로 남습니다(되돌릴 자리가 됩니다).
+
+```bash
+dtc update wordquiz --image …:v2 -y      # 씨앗이 든 이미지를 먼저 올리고
+dtc env set wordquiz DB_FILE=/data/scoreboard.db
+dtc restart wordquiz
+```
+
+**순서가 중요합니다.** 씨앗이 없는 이미지가 새 `DB_FILE` 로 한 번이라도 뜨면 그
+자리에 빈 파일이 생기고, 그 뒤에 씨앗이 든 이미지를 올려도 건너뜁니다. 그렇게 됐다면
+`DB_FILE` 을 또 다른 이름으로 바꾸면 됩니다.
 
 ### 기록이 갈리는 것
 
@@ -163,9 +205,15 @@ docker run --rm -v "$PWD:/app" -w /app node:24-alpine \
 `server/import-csv.js` 로 그대로 되넣을 수 있습니다.
 
 ```bash
-dtc env set wordquiz ADMIN_KEY=$(openssl rand -hex 16)
-curl -fsS "https://wordquiz.example.com/export?key=..." > backup-$(date +%F).csv
+umask 077 && openssl rand -hex 16 > ~/.wordquiz-admin-key
+dtc env set wordquiz ADMIN_KEY="$(cat ~/.wordquiz-admin-key)"
+dtc restart wordquiz
+
+curl -fsS "https://<도메인>/export?key=$(cat ~/.wordquiz-admin-key)" > backup-$(date +%F).csv
 ```
+
+**키를 파일로 남기는 것이 요령입니다.** `dtc env list` 가 값을 가려서 보여 주므로
+플랫폼에서 되읽을 방법이 없습니다.
 
 열쇠가 없거나 틀리면 **404** 입니다. 있는 주소인 것조차 알리지 않습니다.
 응답에는 `clientId` 가 함께 나가므로 열쇠를 흘리지 않게 합니다.
@@ -201,3 +249,8 @@ Script 와 맞춰 **200 에 `{ok:false,error}`** 로 답합니다. 화면이 그
 - `node:sqlite` 는 아직 실험 딱지가 붙어 있습니다. `node:24-alpine` 으로 태그를
   고정해 두었으니 이미지를 다시 만들지 않는 한 흔들리지 않습니다.
 - 점수 조작을 막는 장치는 없습니다. Apps Script 배포와 같은 신뢰 모델입니다.
+- `dtc env list` 는 값을 `e88c****c831` 처럼 **가려서** 보여 줍니다. 한 번 넣은
+  `ADMIN_KEY` 는 되읽을 수 없으니 만들 때 손에 남겨 두세요.
+- 시트가 링크로 열려 있으면 `?format=csv` 로 누구나 전체 기록을 받습니다.
+  `SPREADSHEET_ID` 는 공개 저장소의 `backend/Code.gs` 에 적혀 있습니다. 닉네임과
+  익명 ID 가 그대로 나가므로, 곤란하면 시트 공유 범위를 좁히세요.
