@@ -66,21 +66,6 @@ var ID_MAX = 128;
 
 var handle = db.open(DB_FILE, SEED_DB);
 
-/*
- * index.html 은 저장소에 있는 것을 그대로 쓰고, 내려줄 때 API 주소만 심는다.
- * 파일을 고치면 GitHub Pages 배포까지 따라 바뀌므로 건드리지 않는다.
- * js/scoreboard.js 는 이 값이 없으면 Apps Script 주소로 떨어진다.
- */
-function loadIndex() {
-  var html = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
-  var inject = '<script>window.WORDQUIZ_API_URL = \'/api\';</script>\n</head>';
-  if (html.indexOf('</head>') < 0) throw new Error('index.html 에 </head> 가 없다');
-  var body = Buffer.from(html.replace('</head>', inject), 'utf8');
-  return { body: body, etag: '"index-' + body.length.toString(16) + '"' };
-}
-
-var index = loadIndex();
-
 function json(res, value, status) {
   var body = Buffer.from(JSON.stringify(value), 'utf8');
   res.writeHead(status || 200, {
@@ -221,7 +206,7 @@ var server = http.createServer(function (req, res) {
     }
 
     if (req.method === 'GET' || req.method === 'HEAD') {
-      if (statics.send(req, res, ROOT, url, index)) return;
+      if (statics.send(req, res, ROOT, url)) return;
     }
     json(res, { ok: false, error: 'not_found' }, 404);
   } catch (err) {

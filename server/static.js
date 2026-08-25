@@ -60,23 +60,13 @@ function etagOf(stat) {
 }
 
 /** 보냈으면 true. 파일이 없으면 false 를 돌려주고 호출한 쪽이 404 를 낸다. */
-function send(req, res, root, url, index) {
-  var pathname = url.pathname;
-  var body = null;
+function send(req, res, root, url) {
+  var found = resolve(root, url.pathname);
+  if (!found) return false;
 
-  // index.html 은 시작할 때 한 번 읽어 API 주소를 심어 둔 것을 쓴다.
-  var etag;
-  if (index && (pathname === '/' || pathname === '/index.html')) {
-    body = index.body;
-    etag = index.etag;
-    pathname = '/index.html';
-  } else {
-    var found = resolve(root, pathname);
-    if (!found) return false;
-    body = fs.readFileSync(found.file);
-    etag = etagOf(found.stat);
-    pathname = found.file;
-  }
+  var body = fs.readFileSync(found.file);
+  var etag = etagOf(found.stat);
+  var pathname = found.file;
 
   res.setHeader('Cache-Control', cacheControl(pathname, url.searchParams.has('v')));
   res.setHeader('ETag', etag);

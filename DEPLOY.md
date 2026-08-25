@@ -1,22 +1,17 @@
-# 자체 서버 배포 (dropthe.codes)
+# 배포 (dropthe.codes)
 
-기존 배포는 그대로 둡니다. GitHub Pages + Apps Script + Google Sheets 는 손대지 않고,
-같은 저장소를 컨테이너로 한 벌 더 띄웁니다. 두 배포는 서로를 모르며 기록도 각자 씁니다.
+WordQuiz 의 배포처입니다. 화면과 스코어보드 API 를 컨테이너 하나가 함께 내보내고,
+기록은 볼륨 위 SQLite 파일에 씁니다.
 
-|  | 기존 | 자체 서버 |
-|---|---|---|
-| 화면 | GitHub Pages | 같은 컨테이너 |
-| 스코어보드 | Apps Script + Sheets | 같은 컨테이너의 `/api` |
-| 저장소 | Google Sheet | 볼륨 위 SQLite 파일 하나 |
-| 순위 한 번 부르는 데 | 2~3초 | 수 ms |
+2026-08-25 까지 쓰던 GitHub Pages + Apps Script + Google Sheets 배포는 물러났습니다.
+그때까지의 기록은 옮겨 왔습니다 — [SCOREBOARD_SETUP.md](SCOREBOARD_SETUP.md) 의
+'옛 배포'.
 
 ## 왜 이 모양인가
 
 **컨테이너 하나에 화면과 API 를 같이 둡니다.** 오리진이 하나라 CORS 가 없고, 배포도
-한 번입니다. 화면이 API 주소를 알아야 할 일도 없습니다 — 서버가 `index.html` 을
-내려줄 때 `window.WORDQUIZ_API_URL = '/api'` 를 심어 줍니다. 저장소의 `index.html` 은
-그대로라서 GitHub Pages 쪽은 아무 영향을 받지 않고, `js/scoreboard.js` 는 그 값이
-없으면 Apps Script 주소로 떨어집니다.
+한 번입니다. 화면은 API 주소를 알 필요가 없습니다 — `js/scoreboard.js` 가 같은
+오리진의 `/api` 를 부릅니다.
 
 **관리형 DB 대신 SQLite 를 씁니다.** 쓰기는 판이 끝날 때 `INSERT` 한 번이고 읽기는
 집계뿐입니다. 이 부하에 DB 파드를 따로 띄우면 CPU 와 메모리만 더 먹습니다. Block
@@ -27,17 +22,15 @@
 싶어지면 `dtc db create` 로 Postgres 를 붙이고 `server/db.js` 만 갈아 끼웁니다.
 집계는 `server/rank.js` 가 따로 들고 있어 저장소가 바뀌어도 그대로입니다.
 
-**서버 캐시는 두지 않았습니다.** Apps Script 의 `CacheService` 5분 캐시는 시트를 여는
-데만 2~3초가 걸려서 있던 것입니다. SQLite 는 매 요청 계산해도 밀리초라 캐시가
-버는 것보다 '방금 등록한 점수가 안 보인다'는 값이 더 큽니다. 화면 쪽 60초 캐시와
-미리 받아 두기(`js/scoreboard.js`)는 그대로 두어도 해가 없습니다.
+**서버 캐시는 두지 않았습니다.** 매 요청 계산해도 밀리초라, 캐시가 버는 것보다
+'방금 등록한 점수가 안 보인다'는 값이 더 큽니다.
 
 ## 파일
 
 ```
 Dockerfile              node:24-alpine, 의존성 없음
 .dockerignore           data/raw · tools · tests 는 이미지에 넣지 않는다
-server/server.js        HTTP · 라우팅 · 입력 검증 · index.html 주입
+server/server.js        HTTP · 라우팅 · 입력 검증
 server/db.js            SQLite 스키마와 읽기/쓰기
 server/rank.js          순위 계산 (backend/Code.gs 에서 그대로 옮김)
 server/static.js        정적 파일 · 캐시 헤더 · 경로 탈출 방지
@@ -192,13 +185,6 @@ dtc restart wordquiz
 자리에 빈 파일이 생기고, 그 뒤에 씨앗이 든 이미지를 올려도 건너뜁니다. 그렇게 됐다면
 `DB_FILE` 을 또 다른 이름으로 바꾸면 됩니다.
 
-### 기록이 갈리는 것
-
-두 배포를 같이 굴리면 그때부터 기록이 갈립니다. 한쪽을 정본으로 삼든지, 갈린 채로
-두고 순위표를 둘로 보든지 정해야 합니다. 나중에 합치는 길은 없습니다 — `clientId` 는
-브라우저마다 다르고 두 주소는 `localStorage` 를 나눠 쓰니, 같은 사람도 두 배포에서
-다른 사람으로 잡힙니다.
-
 ## 백업
 
 `ADMIN_KEY` 를 정해 두면 `/export` 가 시트와 같은 모양의 CSV 를 내려줍니다.
@@ -222,7 +208,8 @@ curl -fsS "https://<도메인>/export?key=$(cat ~/.wordquiz-admin-key)" > backup
 
 ## API
 
-`backend/Code.gs` 의 계약을 그대로 따릅니다. 주소 하나에 GET 은 순위, POST 는 등록입니다.
+주소 하나에 GET 은 순위, POST 는 등록입니다. 옛 Apps Script 배포의 계약을 그대로
+물려받았습니다(`backend/Code.gs`).
 
 ```
 GET  /api?action=daily|overall&mode=total|time|score[&date=yyyy-MM-dd][&length=5..10]
@@ -233,10 +220,10 @@ POST /api   {"action":"submit","clientId":…,"nickname":…,"puzzleId":…,
 응답 모양도 같습니다 — `{ok, mode, total, rows}`. 순위 규칙은
 [SCOREBOARD_SETUP.md](SCOREBOARD_SETUP.md) 의 '동작 범위' 그대로입니다.
 
-요청 내용이 잘못된 경우(`invalid_json` · `invalid_action` · `missing_fields`)는 Apps
-Script 와 맞춰 **200 에 `{ok:false,error}`** 로 답합니다. 화면이 그 모양에 맞춰져 있고,
-`js/scoreboard.js` 는 HTTP 상태가 나쁘면 본문을 읽기 전에 던져 버려 오류 이름이
-사라집니다. 없는 주소(404)와 서버 오류(500)만 진짜 상태 코드를 씁니다.
+요청 내용이 잘못된 경우(`invalid_json` · `invalid_action` · `missing_fields`)는
+**200 에 `{ok:false,error}`** 로 답합니다. `js/scoreboard.js` 가 HTTP 상태를 먼저
+보고 본문을 읽기 전에 던져 버려서, 상태 코드로 알리면 오류 이름이 사라집니다.
+없는 주소(404)와 서버 오류(500)만 진짜 상태 코드를 씁니다.
 
 등록 시각과 날짜는 **서버가 찍습니다.** 화면이 보낸 값은 쓰지 않습니다.
 
@@ -248,9 +235,9 @@ Script 와 맞춰 **200 에 `{ok:false,error}`** 로 답합니다. 화면이 그
   사용자를 낮추면 첫 쓰기에서 `EACCES` 로 죽습니다. 자랑용 순위표 하나라 여기까지 합니다.
 - `node:sqlite` 는 아직 실험 딱지가 붙어 있습니다. `node:24-alpine` 으로 태그를
   고정해 두었으니 이미지를 다시 만들지 않는 한 흔들리지 않습니다.
-- 점수 조작을 막는 장치는 없습니다. Apps Script 배포와 같은 신뢰 모델입니다.
+- 점수 조작을 막는 장치는 없습니다. 자랑용 순위표 수준의 신뢰 모델입니다.
 - `dtc env list` 는 값을 `e88c****c831` 처럼 **가려서** 보여 줍니다. 한 번 넣은
   `ADMIN_KEY` 는 되읽을 수 없으니 만들 때 손에 남겨 두세요.
-- 시트가 링크로 열려 있으면 `?format=csv` 로 누구나 전체 기록을 받습니다.
+- 옛 시트가 링크로 열려 있으면 `?format=csv` 로 누구나 그때까지의 기록을 받습니다.
   `SPREADSHEET_ID` 는 공개 저장소의 `backend/Code.gs` 에 적혀 있습니다. 닉네임과
   익명 ID 가 그대로 나가므로, 곤란하면 시트 공유 범위를 좁히세요.
