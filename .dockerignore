@@ -1,0 +1,14 @@
+.git
+.github
+data/raw
+tools
+tests
+var
+*.md
+LICENSE
+__pycache__
+*.pyc
+.venv
+.DS_Store
+Dockerfile
+.dockerignore

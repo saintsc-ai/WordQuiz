@@ -2,6 +2,9 @@
 
 WordQuiz는 GitHub Pages에서 실행되므로 별도 서버를 운영하지 않고 Google Sheets와 Google Apps Script Web App을 저장소로 사용합니다.
 
+> 서버를 직접 띄우는 배포는 [DEPLOY.md](DEPLOY.md)를 보세요. 아래의 점수 규칙과
+> 순위 규칙은 두 배포가 같습니다. 저장소와 응답 속도만 다릅니다.
+
 ## 1. Google Sheet 만들기
 
 빈 Google Sheet를 만들고 URL을 복사합니다. 시트의 첫 번째 탭 이름은 `results`로 두세요. 헤더는 Apps Script가 처음 실행될 때 자동으로 만듭니다.
@@ -17,10 +20,10 @@ WordQuiz는 GitHub Pages에서 실행되므로 별도 서버를 운영하지 않
 
 ## 3. WordQuiz에 URL 넣기
 
-`js/scoreboard.js`의 `API_URL`에 웹 앱 URL을 넣습니다.
+`js/scoreboard.js`의 `APPS_SCRIPT_URL`에 웹 앱 URL을 넣습니다.
 
 ```js
-var API_URL = 'https://script.google.com/macros/s/배포ID/exec';
+var APPS_SCRIPT_URL = 'https://script.google.com/macros/s/배포ID/exec';
 ```
 
 그 다음 커밋하고 `main` 브랜치에 푸시하면 GitHub Pages에 반영됩니다.

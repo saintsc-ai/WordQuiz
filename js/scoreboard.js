@@ -5,7 +5,12 @@
   'use strict';
 
   // Paste the deployed Apps Script Web App URL here.
-  var API_URL = 'https://script.google.com/macros/s/AKfycbwA_wMozj8mHCvR9RkKDHeAj5gVkJKld5G5UK_uVr002EZ4aX_6-7rbP_e20QhFQH3nfA/exec';
+  var APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwA_wMozj8mHCvR9RkKDHeAj5gVkJKld5G5UK_uVr002EZ4aX_6-7rbP_e20QhFQH3nfA/exec';
+
+  // 배포가 둘이다. GitHub Pages 는 위 Apps Script 를 그대로 쓰고, 자체 서버
+  // (server/server.js) 는 index.html 을 내려줄 때 '/api' 를 심어 준다.
+  // 같은 주소에 GET 은 순위, POST 는 등록이라 아래 코드는 어느 쪽이든 같다.
+  var API_URL = global.WORDQUIZ_API_URL || APPS_SCRIPT_URL;
 
   // 시트를 여는 왕복이 몇 초 걸린다. 탭을 오갈 때마다 다시 부르지 않도록
   // 이번 세션 동안만 들고 있는다. 점수를 등록하면 버린다.

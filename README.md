@@ -142,6 +142,10 @@ python tools/check_css.py
 있습니다. 자세한 설정은 [SCOREBOARD_SETUP.md](SCOREBOARD_SETUP.md)를 보세요.
 URL을 설정하지 않으면 게임과 결과 공유만 사용할 수 있습니다.
 
+서버를 직접 띄우는 배포도 있습니다. 화면과 API 를 한 컨테이너에 담고 기록을
+SQLite 파일에 씁니다 — [DEPLOY.md](DEPLOY.md). 두 배포는 서로를 모르며 기록도
+각자 씁니다.
+
 판마다 다른 단어를 풀기 때문에 '같은 문제를 누가 잘 풀었나'를 셀 수 없습니다.
 그래서 순위는 사람별로 셉니다. **오늘 순위 · 전체 순위** 를 고르고, 그 안에서
 세 가지로 나눠 봅니다.
@@ -190,7 +194,7 @@ js/store.js         localStorage (길이 · 닉네임 · 익명 ID · 출제/등
 js/jamo.js          한글 ↔ 자판 입력열 변환
 js/dict.js          단어 데이터 로딩 · 검증, 자모 길이 목록
 js/game.js          게임 상태와 채점 (DOM 비의존)
-js/scoreboard.js    Apps Script 스코어보드 클라이언트
+js/scoreboard.js    스코어보드 클라이언트 (Apps Script / 자체 서버)
 js/ui-sheet.js      시트(모달) 셸 · 포커스 관리 · 토스트
 js/ui-share.js      링크 만들기 · 해시 읽기 · 클립보드
 js/ui-board.js      보드와 자판 렌더링
@@ -200,6 +204,9 @@ js/ui.js            조립 · 입력 처리 · 해시 라우팅
 tests/              브라우저에서 여는 테스트
 tools/              사전 내려받기 · 가공 · 검사 스크립트
 data/               생성된 단어 데이터
+backend/Code.gs     Apps Script 스코어보드 (GitHub Pages 배포용)
+server/             자체 배포 서버 · SQLite (DEPLOY.md)
+Dockerfile          자체 배포 이미지
 ```
 
 같은 규칙이 js 와 python 에 두 벌로 적혀 있습니다. `js/jamo.js` 의 `EXPAND` ·
