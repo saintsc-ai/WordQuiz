@@ -34,7 +34,9 @@ server/server.js        HTTP · 라우팅 · 입력 검증
 server/db.js            SQLite 스키마와 읽기/쓰기
 server/rank.js          순위 계산 (backend/Code.gs 에서 그대로 옮김)
 server/static.js        정적 파일 · 캐시 헤더 · 경로 탈출 방지
+server/dict.js          추측 허용 사전 (읽기 전용 SQLite)
 server/import-csv.js    시트 CSV 를 SQLite 로 옮기기
+data/dict.db            추측으로 인정되는 자모열. 이미지에 실려 온다
 seed/wordquiz.db        (선택) 첫 배포에 태워 보내는 기록. 커밋하지 않는다
 ```
 
@@ -113,7 +115,8 @@ dtc restart wordquiz
 
 ```bash
 dtc describe wordquiz
-curl -s https://<도메인>/healthz     # {"ok":true}
+curl -s https://<도메인>/healthz     # {"ok":true,"dict":24945}
+#   dict 가 0 이면 사전이 안 실린 것이다. 그 상태에서는 아무 단어나 통과한다.
 ```
 
 `dtc logs` 는 파드 이름을 못 찾아 실패할 때가 있습니다. 살아 있는지는 `/healthz` 로
@@ -129,6 +132,7 @@ curl -s https://<도메인>/healthz     # {"ok":true}
 | `STATIC_ROOT` | 저장소 뿌리 | 정적 파일 위치 |
 | `SEED_DB` | `/app/seed/wordquiz.db` | 볼륨이 비어 있을 때 한 번만 복사하는 씨앗 |
 | `ADMIN_KEY` | 없음 | 백업 내려받기 열쇠. 비우면 `/export` 가 없는 주소가 된다 |
+| `DICT_FILE` | `/app/data/dict.db` | 추측 허용 사전. 읽기만 한다 |
 
 ```bash
 dtc env set wordquiz TZ=Asia/Seoul

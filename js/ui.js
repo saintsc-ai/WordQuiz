@@ -128,15 +128,16 @@
     if (game && game.back()) repaint();
   }
 
-  function onSubmit() {
-    if (locked || !game) return;
-    if (game.status !== 'play') { showResult(); return; }
-
+  /*
+   * 사전 확인이 끝난 뒤의 제출. game.submit() 은 동기라, 여기 오기 전에
+   * 그 자모열을 dict.check 로 물어봐 둬야 한다(onSubmit).
+   */
+  function applySubmit() {
     var rowIndex = game.rows.length;
     var res = game.submit();
     if (!res.ok) {
       if (res.reason === 'short') Sheet.toast('자모 ' + game.length + '개를 모두 채우세요');
-      if (res.reason === 'unknown') Sheet.toast('사전에 없는 단어예요');
+      if (res.reason === 'unknown') Sheet.toast('사전에 없는 단어예요 (명사만 됩니다)');
       Board.shake();
       return;
     }
@@ -147,6 +148,27 @@
       Board.paintKeyboard(game);
       repaint();
       if (game.status !== 'play') showResult();
+    });
+  }
+
+  function onSubmit() {
+    if (locked || !game) return;
+    if (game.status !== 'play') { showResult(); return; }
+
+    // 덜 찼으면 사전을 물어볼 것도 없다. applySubmit 이 'short' 를 내보낸다.
+    if (!game.isFull()) { applySubmit(); return; }
+
+    /*
+     * 사전은 서버에 있다(js/dict.js). 답이 올 때까지 입력을 막는다 — 안 그러면
+     * 기다리는 사이에 자모를 더 쳐 넣고, 엉뚱한 줄이 올라간다.
+     * 이미 물어본 단어면 왕복 없이 곧바로 이어진다.
+     */
+    var typed = game.current;
+    locked = true;
+    game.dict.check([typed]).then(function () {
+      locked = false;
+      if (!game || game.current !== typed) return;   // 기다리는 사이 판이 바뀌었다
+      applySubmit();
     });
   }
 
@@ -225,6 +247,18 @@
     if (!word) global.Store.saveLength(n);
     submitBtn.textContent = '사전 불러오는 중…';
     return global.Dict.load(n).then(function (dict) {
+      /*
+       * reset(word) 와 restoreResult 는 사전을 동기로 본다. 링크로 받은 단어와
+       * 결과 코드가 주장하는 줄들을 한 번에 물어봐 두고 시작한다.
+       */
+      var need = [];
+      if (word) {
+        var jamo = global.Jamo.decompose(word);
+        if (jamo) need.push(jamo);
+      }
+      if (resultCode) need = need.concat(global.Game.resultJamo(resultCode));
+      return dict.check(need).then(function () { return dict; });
+    }).then(function (dict) {
       game = new global.Game(dict, alreadyScored);
       shared = false;
       sharedResult = false;

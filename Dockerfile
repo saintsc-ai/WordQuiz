@@ -1,5 +1,7 @@
-# WordQuiz 자체 배포용 이미지 — 화면(정적 파일)과 스코어보드 API 를 한 컨테이너에서.
-# GitHub Pages + Apps Script 배포는 이 파일과 상관없이 그대로 돌아간다.
+# WordQuiz 배포 이미지 — 화면(정적 파일)과 API 를 한 컨테이너에서.
+#
+# data/dict.db(추측 허용 사전)도 함께 실린다. 화면이 /valid 로 물어보는 상대라
+# 이게 빠지면 아무 단어나 통과한다. 빠졌는지는 /healthz 의 dict 로 본다.
 FROM node:24-alpine
 
 # Intl 은 ICU 를 쓰지만 로그 시각과 process.env.TZ 는 시스템 tzdata 를 본다.

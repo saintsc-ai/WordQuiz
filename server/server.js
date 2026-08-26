@@ -12,6 +12,11 @@
  *
  *   GET  /api?action=daily|overall&mode=total|time|score[&date=&length=]
  *   POST /api   {"action":"submit", ...}
+ *   GET  /valid?n=6&w=<자모열>[&w=...]
+ *
+ * /valid 는 사전이 서버에만 있어서 생긴 주소다. 예전에는 data/words-N.js 를
+ * 화면이 통으로 받아 혼자 판정했는데, 표제어가 수십만 개로 늘면서 그러기에는
+ * 너무 무거워졌다.
  *
  * Apps Script 는 무엇이 잘못돼도 200 에 {ok:false} 를 실어 보낸다(플랫폼 제약).
  * 화면이 그 모양에 맞춰져 있으므로 여기서도 요청 내용이 잘못된 경우는 200 에
@@ -24,6 +29,7 @@ var fs = require('node:fs');
 var path = require('node:path');
 
 var db = require('./db');
+var dict = require('./dict');
 var rank = require('./rank');
 var statics = require('./static');
 
@@ -47,6 +53,12 @@ var SEED_DB = process.env.SEED_DB || path.join(__dirname, '..', 'seed', 'wordqui
  */
 var ADMIN_KEY = process.env.ADMIN_KEY || '';
 
+/*
+ * 추측 허용 사전. 이미지에 실려 오는 읽기 전용 파일이라 기록 DB 와 따로 둔다.
+ * tools/build_dict.py 가 만든다.
+ */
+var DICT_FILE = process.env.DICT_FILE || path.join(__dirname, '..', 'data', 'dict.db');
+
 var TZ = process.env.TZ || 'Asia/Seoul';
 var DATE_PARTS = new Intl.DateTimeFormat('en-US', {
   timeZone: TZ, year: 'numeric', month: '2-digit', day: '2-digit'
@@ -65,6 +77,7 @@ var NAME_MAX = 20;
 var ID_MAX = 128;
 
 var handle = db.open(DB_FILE, SEED_DB);
+var words = dict.open(DICT_FILE);
 
 function json(res, value, status) {
   var body = Buffer.from(JSON.stringify(value), 'utf8');
@@ -74,6 +87,39 @@ function json(res, value, status) {
     'Cache-Control': 'no-store'
   });
   res.end(body);
+}
+
+/*
+ * 추측이 사전에 있는 단어인지 알려준다. w 를 여러 번 붙이면 한 번에 묻는다
+ * (저장된 판을 복원할 때 줄마다 왕복하지 않으려는 것이다).
+ *
+ * 사전을 못 열었으면 전부 통과시킨다. 사전이 빠진 배포에서 아무 단어도
+ * 못 내는 것보다는, 아무 단어나 내지는 것이 낫다고 봤다. 그 상태는
+ * /healthz 의 dict 가 0 으로 알린다.
+ *
+ * 답은 사전이 바뀌기 전까지 변하지 않는다. 화면도 따로 담아 두지만(js/dict.js),
+ * 새로고침하면 사라지므로 브라우저 캐시에도 잠깐 얹는다.
+ */
+var VALID_MAX = 16;
+
+function getValid(res, url) {
+  var n = Number(url.searchParams.get('n'));
+  if (!(n >= 5 && n <= 10)) return json(res, { ok: false, error: 'bad_length' });
+
+  var asked = url.searchParams.getAll('w').slice(0, VALID_MAX);
+  if (!asked.length) return json(res, { ok: false, error: 'no_words' });
+
+  var valid = {};
+  asked.forEach(function (jamo) {
+    // 길이가 안 맞으면 사전을 뒤질 것도 없다.
+    valid[jamo] = jamo.length === n && (!words || words.has(n, jamo));
+  });
+
+  res.writeHead(200, {
+    'Content-Type': 'application/json; charset=utf-8',
+    'Cache-Control': 'public, max-age=3600'
+  });
+  res.end(JSON.stringify({ ok: true, valid: valid }));
 }
 
 function getRank(res, url) {
@@ -187,10 +233,14 @@ var server = http.createServer(function (req, res) {
   try { url = new URL(req.url, 'http://localhost'); } catch (err) { return json(res, { ok: false, error: 'bad_request' }, 400); }
 
   try {
-    if (url.pathname === '/healthz') return json(res, { ok: true });
+    if (url.pathname === '/healthz') return json(res, { ok: true, dict: words ? words.size : 0 });
 
     if (url.pathname === '/export' && (req.method === 'GET' || req.method === 'HEAD')) {
       return exportCsv(res, url);
+    }
+
+    if (url.pathname === '/valid' && (req.method === 'GET' || req.method === 'HEAD')) {
+      return getValid(res, url);
     }
 
     if (url.pathname === '/api') {
@@ -224,6 +274,7 @@ server.listen(PORT, function () {
   process.on(signal, function () {
     server.close(function () {
       try { handle.close(); } catch (err) { /* 이미 닫혔다 */ }
+      try { if (words) words.close(); } catch (err) { /* 이미 닫혔다 */ }
       process.exit(0);
     });
   });

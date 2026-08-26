@@ -4,12 +4,13 @@
 
 js/jamo.js 의 EXPAND · UNSUPPORTED 는 tools/build_dict.py 의 것과 같아야 한다.
 어긋나면 사전에는 있는데 게임에서는 못 치는 단어(또는 그 반대)가 생긴다.
-data/*.js 가 실제로 그 규칙대로 만들어졌는지도 함께 본다.
+data/dict.db 가 실제로 그 규칙대로 만들어졌는지도 함께 본다.
 """
 
 import ast
 import json
 import re
+import sqlite3
 import sys
 from pathlib import Path
 
@@ -71,16 +72,20 @@ def main():
     bad = {k: v for k, v in py_expand.items() if not set(v) <= keys}
     ok &= report(f"EXPAND 의 값이 모두 기본 24키 ({len(keys)}키)", not bad, json.dumps(bad, ensure_ascii=False))
 
-    # 생성물이 실제로 그 길이로 만들어져 있는지
-    for n in py_lengths:
-        path = ROOT / "data" / f"words-{n}.js"
-        if not path.exists():
-            ok &= report(f"data/words-{n}.js 존재", False, "파일 없음")
-            continue
-        blob = json.loads(re.search(r"=\s*(\".*\")\s*;", path.read_text(encoding="utf-8"), re.S).group(1))
-        clean = len(blob) % n == 0 and set(blob) <= keys
-        ok &= report(f"data/words-{n}.js — {len(blob) // n}개, {n}칸씩 나눠떨어짐", clean,
-                     f"길이 {len(blob)} % {n} = {len(blob) % n}, 낯선 문자 {sorted(set(blob) - keys)}")
+    # 생성물이 실제로 그 길이로, 그 자모로 만들어져 있는지
+    db_path = ROOT / "data" / "dict.db"
+    if not db_path.exists():
+        ok &= report("data/dict.db 존재", False, "파일 없음 -> python tools/build_dict.py")
+    else:
+        con = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)
+        for n in py_lengths:
+            rows = [j for (j,) in con.execute("SELECT jamo FROM words WHERE n = ?", (n,))]
+            wrong = [j for j in rows if len(j) != n]
+            strange = sorted({c for j in rows for c in j} - keys)
+            ok &= report(f"dict.db 자모 {n} — {len(rows)}개, 모두 {n}칸에 기본 24키",
+                         bool(rows) and not wrong and not strange,
+                         f"길이가 다른 것 {len(wrong)}개, 낯선 문자 {strange}")
+        con.close()
 
     print("\n전부 일치합니다." if ok else "\n어긋난 항목이 있습니다.")
     return 0 if ok else 1

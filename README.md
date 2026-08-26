@@ -170,12 +170,18 @@ python tools/check_css.py
 
 ```bash
 python tools/fetch_krdict.py   # 원본 zip 내려받기 (약 84MB, data/raw/)
-python tools/build_dict.py     # data/words-N.js, answers-N.js 생성
+python tools/build_dict.py     # data/dict.db, answers-N.js 생성
 python tools/check_sync.py     # 규칙이 어긋나지 않았는지 확인
 ```
 
 사전을 다시 만들었다면 `index.html` 의 `APP_VERSION` 도 올려야 브라우저가
 낡은 데이터를 붙들지 않습니다.
+
+추측으로 인정되는 단어는 `data/dict.db` 에 들어가고 **서버만 읽습니다**
+(`server/dict.js`). 표제어가 수십만 개라 브라우저로 내려보내지 않고, 화면이
+`/valid` 로 물어봅니다. 정답 후보 `answers-N.js` 는 길이당 1~2천 개라 예전처럼
+화면이 그대로 받습니다. 그래서 이 저장소를 `file://` 로 열면 판은 깔리지만
+추측 검증이 되지 않습니다 — 서버를 띄워야 합니다(`DEPLOY.md`).
 
 | 자모 수 | 추측 허용 | 정답 후보 |
 |---:|---:|---:|

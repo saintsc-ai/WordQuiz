@@ -279,6 +279,21 @@
   };
 
   Game.MAX_TRIES = MAX_TRIES;
+  /*
+   * 결과 공유 링크가 주장하는 자모열들. 사전 확인이 서버 왕복이 된 뒤로
+   * (js/dict.js) restoreResult 는 그 단어들이 이미 확인돼 있어야 돌아간다.
+   * 화면이 restoreResult 를 부르기 전에 이걸로 먼저 물어본다.
+   * 코드가 깨졌으면 빈 배열 — 판정은 restoreResult 가 하게 둔다.
+   */
+  Game.resultJamo = function (code) {
+    var payload;
+    try { payload = JSON.parse(decode(code)); } catch (e) { return []; }
+    if (!payload || !Array.isArray(payload.rows)) return [];
+    return payload.rows.map(function (row) {
+      return row && typeof row.jamo === 'string' ? row.jamo : '';
+    }).filter(Boolean);
+  };
+
   Game.score = score;
   Game.encode = encode;
   Game.decode = decode;
