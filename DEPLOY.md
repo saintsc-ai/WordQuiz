@@ -111,6 +111,30 @@ dtc update wordquiz --image api.dropthe.codes/<계정>/wordquiz:v2 -y
 dtc restart wordquiz
 ```
 
+**올렸다고 바뀐 것이 아닙니다. `/healthz` 로 확인하세요.**
+
+2026-08-27 에 겪은 일입니다. `dtc update` 가 이미지를 바꿨다고 답하고
+(`이미지: …:v2 → …:v3`), `dtc restart` 도 성공했다고 답하고, `dtc describe` 의
+업타임도 1분으로 새로 뜬 것처럼 보였는데, 실제로는 **옛 컨테이너가 계속
+서비스하고 있었습니다.** 옛 `data/words-6.js` 가 200 을 돌려주는 것으로 들통났습니다.
+
+새 태그로 한 번 더 올리고 재시작하니 그제야 503 을 잠깐 거쳐 새 파드가 떴습니다.
+`dtc restart` 가 항상 이미지를 다시 당겨오지는 않는 것으로 보입니다.
+
+그래서 배포는 여기서 끝나지 않습니다. `/healthz` 가 새 코드의 응답을 돌려줄
+때까지 확인하고, 안 바뀌면 태그를 올려 다시 밀어야 합니다.
+
+```bash
+for i in $(seq 1 15); do
+  curl -s https://<도메인>/healthz; echo
+  sleep 8
+done
+```
+
+`/healthz` 를 코드 변경이 드러나게 만들어 두면 이 확인이 값을 합니다. 지금은
+사전 개수를 실어 보냅니다 — `{"ok":true,"dict":167786}`. 숫자가 옛것이면
+옛 이미지가 돌고 있다는 뜻입니다.
+
 확인:
 
 ```bash
