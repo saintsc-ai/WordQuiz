@@ -137,6 +137,21 @@
     });
   }
 
+  /*
+   * 더 채워야 하는가.
+   *
+   * 목록은 사용자가 스크롤할 때 다음 묶음을 그린다. 그런데 그려 놓은 것이
+   * 컨테이너를 넘치지 않으면 스크롤할 것이 없고, 스크롤이 없으면 이벤트도
+   * 없다. 그러면 '더 불러오는 중…' 을 띄운 채 영영 멈춘다 — 창이 세로로
+   * 길거나 기록이 짧을 때 실제로 그렇게 된다.
+   *
+   * 그래서 스크롤이 생길 때까지는 스스로 채운다. 생긴 뒤부터는 사용자가
+   * 부르는 대로 따라간다.
+   */
+  function needsMore(rendered, total, canScroll) {
+    return rendered < total && !canScroll;
+  }
+
   function showRanking(period, mode) {
     period = period || 'daily';
     mode = modeOf(mode).key;
@@ -175,12 +190,21 @@
       var scroll = document.getElementById('ranking-scroll');
       var loading = document.getElementById('ranking-loading');
       var offset = 0;
-      function appendRankings() {
+      function drawOnePage() {
         var next = rows.slice(offset, offset + PAGE_SIZE);
         next.forEach(function (row, index) {
           list.insertAdjacentHTML('beforeend', rankingRow(row, offset + index, mode));
         });
         offset += next.length;
+      }
+      function appendRankings() {
+        drawOnePage();
+        // 스크롤이 생길 때까지 이어서 채운다. 안 그러면 사용자가 다음 묶음을
+        // 부를 방법이 없다 (needsMore 의 주석 참고).
+        while (needsMore(offset, rows.length,
+                         scroll.scrollHeight > scroll.clientHeight)) {
+          drawOnePage();
+        }
         loading.hidden = offset >= rows.length;
       }
       appendRankings();
@@ -349,5 +373,6 @@
     }
   }
 
-  global.UIScore = { showResult: showResult, showRanking: showRanking, record: record, recordable: recordable };
+  global.UIScore = { showResult: showResult, showRanking: showRanking, record: record,
+                     recordable: recordable, needsMore: needsMore };
 })(window);

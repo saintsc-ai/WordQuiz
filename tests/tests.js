@@ -248,6 +248,24 @@
     }));
     t.ok('기회보다 많은 줄은 거부', g3.restoreResult(tooMany) === false);
 
+    /* 스코어보드 더 불러오기 --------------------------------------------
+     *
+     * 목록은 스크롤할 때마다 다음 묶음을 그린다. 그런데 첫 묶음이 컨테이너를
+     * 넘치지 않으면 스크롤할 것이 없어 이벤트가 영영 오지 않는다. 창이 세로로
+     * 길면 실제로 그렇게 되고, '더 불러오는 중…' 에서 멈춘 채 끝난다.
+     */
+    var needsMore = global.UIScore && global.UIScore.needsMore;
+    t.ok('needsMore 가 있다', typeof needsMore === 'function');
+    if (typeof needsMore === 'function') {
+      t.ok('스크롤이 안 생겼는데 남은 것이 있으면 더 채운다',
+           needsMore(10, 25, false) === true);
+      t.ok('스크롤이 생겼으면 사용자가 부를 수 있으니 멈춘다',
+           needsMore(10, 25, true) === false);
+      t.ok('다 그렸으면 멈춘다', needsMore(25, 25, false) === false);
+      t.ok('더 그렸어도 멈춘다', needsMore(30, 25, false) === false);
+      t.ok('빈 목록이면 멈춘다', needsMore(0, 0, false) === false);
+    }
+
     var passed = t.results.filter(function (r) { return r.ok; }).length;
     return { results: t.results, passed: passed, failed: t.results.length - passed };
   }
