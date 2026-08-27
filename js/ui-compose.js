@@ -18,7 +18,7 @@
       '<h2>직접 출제</h2>' +
       '<p class="hint">사전에 있는 명사를 넣으면 그 단어로 푸는 링크를 만듭니다.<br>' +
         '자모 ' + RANGE + '칸짜리만 낼 수 있어요.</p>' +
-      '<input class="compose-input" id="cw" type="text" placeholder="예: 안녕" aria-label="낼 단어"' +
+      '<input class="compose-input" id="cw" type="text" placeholder="예: 사랑" aria-label="낼 단어"' +
         ' autocomplete="off" autocapitalize="off" spellcheck="false" maxlength="12">' +
       '<p class="compose-status" id="cs" role="status">한글 명사를 입력하세요</p>' +
       '<input class="compose-link" id="cl" type="text" aria-label="출제 링크" readonly hidden>' +
@@ -96,7 +96,7 @@
     Sheet.open(
       '<h2>규칙</h2>' +
       '<ol>' +
-        '<li>자모 ' + RANGE + '개 중 하나를 골라 그 길이의 명사를 맞힙니다. 예: 안녕 → ㅇㅏㄴㄴㅕㅇ (6칸)</li>' +
+        '<li>자모 ' + RANGE + '개 중 하나를 골라 그 길이의 명사를 맞힙니다. 예: 사랑 → ㅅㅏㄹㅏㅇ (5칸)</li>' +
         '<li>기회는 ' + MAX_TRIES + '번. 추측하는 단어도 사전에 있는 명사여야 합니다.</li>' +
         '<li>쌍자음 · 겹받침 · 복합모음은 기본 자모를 이어서 칩니다. ㄲ=ㄱㄱ, ㄺ=ㄹㄱ, ㅐ=ㅏㅣ, ㅘ=ㅗㅏ</li>' +
         '<li>ㅙ · ㅞ 가 들어간 단어는 나오지 않습니다.</li>' +
@@ -122,7 +122,7 @@
         '<button type="button" class="primary" id="act-link2">지금 단어 링크 복사</button>' +
       '</div>' +
       '<p class="source-note">' +
-        '단어 출처: 국립국어원 한국어기초사전</p>'
+        '단어 출처: 국립국어원 한국어기초사전 · 표준국어대사전</p>'
     );
     document.getElementById('act-link2').addEventListener('click', onCompose.copyLink);
     document.getElementById('act-compose2').addEventListener('click', function () {
