@@ -1,17 +1,31 @@
-"""krdict 원본 zip -> 게임용 단어 데이터 생성.
+"""사전 원본 -> 게임용 단어 데이터 생성.
 
-    python tools/fetch_krdict.py     # 먼저 원본 내려받기
+    python tools/fetch_krdict.py     # 한국어기초사전 zip 내려받기
     python tools/build_dict.py
 
+원본 둘을 서로 다른 용도로 쓴다. 성격이 달라서다.
+
+    data/raw/krdict_json.zip   한국어기초사전(krdict.korean.go.kr).
+        국립국어원이 한국어를 배우는 사람을 위해 표제어를 추려 만든 사전이라,
+        실려 있다는 것 자체가 '알 만한 말'이라는 뜻이다. 그래서 정답 후보로 쓴다.
+        어휘등급(초급·중급·고급)이 붙어 있지만 등급으로 거르지 않는다 —
+        학습자 사전 안에서 나중에 배우는 말일 뿐 어려운 말이 아니다.
+
+    data/raw/stdict/*.json     표준국어대사전(stdict.korean.go.kr).
+        모든 말을 기록하는 규범 사전이라 옛말·방언·전문용어까지 들어 있다.
+        정답으로 내면 못 푸는 판이 생기므로 추측 허용에만 쓴다.
+
 만들어지는 파일 (data/):
-    dict.db       추측으로 인정되는 자모 입력열 전부. 서버만 읽는다(server/dict.js).
-                  브라우저로 내려보내지 않는다 — 표제어가 수십만 개라 통으로
-                  받게 하면 첫 화면이 무거워진다. 화면은 /valid 로 물어본다.
-    answers-N.js  그중 어휘등급 초급/중급인 단어 목록(한글 그대로).
-                  = 정답 후보. 이건 작아서(길이당 1~2천 개) 화면이 그대로 받는다.
+    dict.db       추측으로 인정되는 자모 입력열 전부. 두 사전의 합집합이다.
+                  합집합인 이유는 지금 통과하던 말이 갑자기 거부되지 않게 하려는 것.
+                  서버만 읽는다(server/dict.js). 브라우저로 내려보내지 않는다 —
+                  십수만 개를 통으로 받게 하면 첫 화면이 무거워진다.
+                  화면은 /valid 로 물어본다.
+    answers-N.js  정답 후보(한글 그대로). 기초사전 명사 전부.
+                  작아서(길이당 1~7천 개) 화면이 그대로 받는다.
                   자모 분해는 실행 시점에 js/jamo.js 가 한다.
 
-fetch/미지원 자모 규칙은 js/jamo.js 와 반드시 같아야 한다.
+미지원 자모 규칙은 js/jamo.js 와 반드시 같아야 한다.
 """
 
 import json
@@ -22,12 +36,12 @@ from collections import defaultdict
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-RAW = ROOT / "data" / "raw" / "krdict_json.zip"
+RAW = ROOT / "data" / "raw" / "krdict_json.zip"       # 정답 후보 + 추측 허용
+STDICT = ROOT / "data" / "raw" / "stdict"             # 추측 허용에만
 OUT = ROOT / "data"
 DB = OUT / "dict.db"
 
 LENGTHS = (5, 6, 7, 8, 9, 10)
-ANSWER_LEVELS = {"초급", "중급"}
 
 CHO = "ㄱㄲㄴㄷㄸㄹㅁㅂㅃㅅㅆㅇㅈㅉㅊㅋㅌㅍㅎ"
 JUNG = "ㅏㅐㅑㅒㅓㅔㅕㅖㅗㅘㅙㅚㅛㅜㅝㅞㅟㅠㅡㅢㅣ"
@@ -93,6 +107,31 @@ def iter_entries(zf):
         del text
 
 
+# 표준국어대사전 표제어에 붙는 표시들.
+#   하이픈    형태소 경계   감소-기
+#   ^         구 띄어쓰기   가로^쓰기
+#   뒤 숫자   동음이의어    감수01, 감수02  (자모열로 합쳐지니 떼면 그만이다)
+STDICT_MARKS = re.compile(r"[-^]")
+STDICT_HOMONYM = re.compile(r"\d+$")
+
+
+def iter_stdict():
+    """표준국어대사전 JSON 을 흘려보낸다. 파일 하나가 ~9MB 라 통째로 읽어도 된다."""
+    if not STDICT.is_dir():
+        return
+    for path in sorted(STDICT.glob("*.json")):
+        with path.open(encoding="utf-8") as f:
+            data = json.load(f)
+        for item in data.get("channel", {}).get("item", []):
+            yield item.get("word_info") or {}
+
+
+def stdict_word(info):
+    """표제어에서 표시를 떼고 한글만 남긴다. 아니면 None."""
+    word = STDICT_HOMONYM.sub("", STDICT_MARKS.sub("", info.get("word", ""))).strip()
+    return word if word and HANGUL_ONLY.match(word) else None
+
+
 def write_db(words):
     """추측 허용 목록을 SQLite 한 파일로. server/dict.js 가 읽기 전용으로 연다.
 
@@ -120,11 +159,12 @@ def main():
     if not RAW.exists():
         raise SystemExit(f"원본이 없습니다: {RAW}\n먼저 python tools/fetch_krdict.py 를 실행하세요.")
 
-    words = defaultdict(dict)    # 길이 -> {자모열: 대표 단어}
-    answers = defaultdict(list)  # 길이 -> [단어]
+    words = defaultdict(dict)    # 길이 -> {자모열: 대표 단어}  (추측 허용)
+    answers = defaultdict(list)  # 길이 -> [단어]                (정답 후보)
     seen_answer = defaultdict(set)
     stats = defaultdict(int)
 
+    # --- 한국어기초사전: 정답 후보이자 추측 허용 ---
     with zipfile.ZipFile(RAW) as zf:
         for entry in iter_entries(zf):
             stats["entries"] += 1
@@ -151,9 +191,40 @@ def main():
                 continue
 
             words[n].setdefault(jamo, word)
-            if meta.get("vocabularyLevel") in ANSWER_LEVELS and word not in seen_answer[n]:
+            # 등급으로 거르지 않는다. 학습자 사전에 실렸다는 것이 곧 기준이다.
+            if word not in seen_answer[n]:
                 seen_answer[n].add(word)
                 answers[n].append(word)
+
+    stats["krdict_jamo"] = sum(len(v) for v in words.values())
+
+    # --- 표준국어대사전: 추측 허용에만 얹는다 ---
+    if not STDICT.is_dir():
+        print(f"경고: {STDICT.relative_to(ROOT)} 가 없어 표준국어대사전을 건너뜁니다.")
+    for info in iter_stdict():
+        stats["st_entries"] += 1
+        if info.get("word_unit") != "단어":
+            stats["st_skip_unit"] += 1
+            continue
+        if "명사" not in {p.get("pos") for p in info.get("pos_info", [])}:
+            stats["st_skip_pos"] += 1
+            continue
+        word = stdict_word(info)
+        if word is None:
+            stats["st_skip_form"] += 1
+            continue
+        jamo = decompose(word)
+        if jamo is None:
+            stats["st_skip_jamo"] += 1
+            continue
+        n = len(jamo)
+        if n not in LENGTHS:
+            stats["st_skip_len"] += 1
+            continue
+        # setdefault 라 기초사전 표기가 이긴다. 같은 자모열이면 그쪽이 흔한 말이다.
+        words[n].setdefault(jamo, word)
+
+    stats["total_jamo"] = sum(len(v) for v in words.values())
 
     OUT.mkdir(parents=True, exist_ok=True)
     write_db(words)
@@ -162,8 +233,9 @@ def main():
             "window.ANSWERS=window.ANSWERS||{};ANSWERS[%d]=%s;\n" % (n, json.dumps(sorted(answers[n]), ensure_ascii=False)),
             encoding="utf-8",
         )
-        print(f"자모 {n}개: 추측 허용 {len(words[n]):>6}개 / 정답 후보 {len(answers[n]):>5}개")
-    print(f"\n{DB.relative_to(ROOT)}  {DB.stat().st_size >> 10}KB")
+        print(f"자모 {n}개: 추측 허용 {len(words[n]):>7,}개 / 정답 후보 {len(answers[n]):>6,}개")
+    print(f"\n{DB.relative_to(ROOT)}  {DB.stat().st_size >> 10:,}KB"
+          f"  (기초사전만이면 {stats['krdict_jamo']:,} → 합쳐서 {stats['total_jamo']:,})")
 
     print("\n[통계]", dict(stats))
 
