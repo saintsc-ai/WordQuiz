@@ -98,5 +98,79 @@
     });
   }
 
-  global.Define = { of: of, suggest: suggest, render: render, fill: fill };
+  /*
+   * 판이 끝난 뒤, 마지막 추측 때 후보가 몇 개 남아 있었는지.
+   *
+   * 채점은 Game.score 를 그대로 쓴다 — 규칙을 두 벌로 두면 언젠가 어긋나고,
+   * 그때 이 숫자는 조용히 거짓말을 하게 된다.
+   *
+   * 후보는 정답 후보 목록(ANSWERS[n])에서 센다. 추측 허용 목록이 아니다 —
+   * 판을 낼 때 뽑은 자리가 거기이므로, 플레이어가 실제로 상대한 경우의 수도 거기다.
+   *
+   * 이긴 판은 마지막 추측 '직전'까지의 정보로 센다. 그게 그 순간 골라야 했던
+   * 경우의 수다. 진 판은 다 쓰고 난 뒤에 몇 개가 남았는지를 센다.
+   *
+   * 셀 수 없으면 null — 직접 낸 단어가 정답 후보 밖일 수 있고, 그때 이 숫자는
+   * 뜻이 없다. 부르는 쪽이 그 줄을 그리지 않으면 된다.
+   */
+  function odds(game) {
+    var answers = global.ANSWERS && global.ANSWERS[game.length];
+    if (!answers || !answers.length || !global.Game || !global.Game.score) return null;
+    if (!game.rows || !game.rows.length) return null;
+
+    var jamoOf = global.Jamo.decompose;
+    var pool = [];
+    for (var i = 0; i < answers.length; i++) {
+      var j = jamoOf(answers[i]);
+      if (j && j.length === game.length) pool.push(j);
+    }
+    if (!pool.length) return null;
+
+    var won = game.status === 'win';
+    // 이긴 판이면 마지막(맞힌) 추측은 빼고 센다.
+    var upto = won ? game.rows.length - 1 : game.rows.length;
+
+    for (var r = 0; r < upto; r++) {
+      var row = game.rows[r];
+      if (!row || !row.jamo || !row.marks) return null;
+      pool = pool.filter(function (cand) {
+        var got = global.Game.score(row.jamo, cand);
+        for (var k = 0; k < got.length; k++) {
+          if (got[k] !== row.marks[k]) return false;
+        }
+        return true;
+      });
+    }
+
+    // 정답이 후보에 없으면(직접 낸 단어 등) 이 숫자는 뜻이 없다.
+    if (game.answerJamo && pool.indexOf(game.answerJamo) < 0) return null;
+    return { left: pool.length, tries: game.rows.length, won: won };
+  }
+
+  /*
+   * 사람이 읽을 한 줄. 셀 수 없으면 빈 문자열.
+   *
+   * 백분율은 1% 아래로 내려가면 뜻을 잃는다 — 6,996개 중 하나를 0.0% 라고
+   * 적으면 가장 잘한 판을 0점처럼 보이게 만든다. 그럴 때는 개수로 말한다.
+   */
+  function oddsText(game) {
+    var o = odds(game);
+    if (!o || !o.left) return '';
+    var many = o.left.toLocaleString();
+
+    if (!o.won) {
+      return o.left === 1
+        ? '다 쓰고 났을 때 후보는 하나뿐이었어요'
+        : '다 쓰고 났을 때 후보가 ' + many + '개 남아 있었어요';
+    }
+    // 첫 추측에 맞힌 판. 이건 확률이 아니라 자랑거리다.
+    if (o.tries === 1) return '첫 추측에 맞혔어요 — 후보 ' + many + '개 중에서';
+    if (o.left === 1) return '마지막엔 후보가 하나뿐이었어요';
+    if (o.left > 100) return '마지막 추측 때 후보 ' + many + '개 중 하나를 골랐어요';
+    var pct = Math.round(1000 / o.left) / 10;
+    return '마지막 추측 때 후보 ' + many + '개 — ' + pct + '% 에서 맞혔어요';
+  }
+
+  global.Define = { of: of, suggest: suggest, render: render, fill: fill,
+                    odds: odds, oddsText: oddsText };
 })(window);

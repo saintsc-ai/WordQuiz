@@ -326,6 +326,13 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .sheet-body .sense-more summary { cursor: pointer; text-align: center; }
 .sheet-body .sense-more ol { margin: 8px 0 0; padding-left: 20px; line-height: 1.55; }
 .sheet-body .sense-more li { margin-bottom: 4px; }
+
+/* 판이 끝난 뒤 '후보 몇 개 중에서 맞혔는지'. 점수 옆이 아니라 시도 횟수 아래에
+   둔다 — 성적이 아니라 그 판이 어땠는지를 말하는 줄이다. */
+.sheet-body .odds {
+  text-align: center; margin: -4px 0 12px;
+  font-size: 13px; color: var(--app-text-faint);
+}
 .sheet-body .grid { text-align: center; font-size: 20px; line-height: 1.3; margin: 12px 0; }
 .sheet-body .hint {
   text-align: center;

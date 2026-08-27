@@ -229,6 +229,13 @@
    * authored: 내가 직접 낸 문제 — 점수에 넣지 않는다.
    * scored: 이미 점수를 등록한 단어 — 한 단어는 한 번만 센다.
    */
+  /* 남은 후보가 몇 개였는지 한 줄. 셀 수 없으면 아무것도 그리지 않는다. */
+  function oddsLine(game) {
+    if (!global.Define || !global.Define.oddsText) return '';
+    var text = global.Define.oddsText(game);
+    return text ? '<p class="odds">' + Share.escapeHtml(text) + '</p>' : '';
+  }
+
   function showResult(ctx) {
     var game = ctx.game;
     var won = game.status === 'win';
@@ -249,6 +256,9 @@
       '<p style="text-align:center">' +
         (won ? game.rows.length + '번 만에 맞혔어요' : MAX_TRIES + '번 안에 못 맞혔어요') +
       '</p>' +
+      // 공유받은 결과에는 넣지 않는다. 추측 자모가 링크에 실려 있어서,
+      // 후보 수를 알려 주면 답을 역산할 수 있다고 알려 주는 꼴이 된다.
+      (ctx.sharedResult ? '' : oddsLine(game)) +
       '<div class="grid">' + grid + '</div>' +
       '<div class="score-summary"><b>' + game.score() + '점</b>' +
         '<span>걸린 시간 ' + Share.formatTime(game.elapsedSeconds()) + '</span></div>' +
