@@ -16,11 +16,16 @@
         정답으로 내면 못 푸는 판이 생기므로 추측 허용에만 쓴다.
 
 만들어지는 파일 (data/):
-    dict.db       추측으로 인정되는 자모 입력열 전부. 두 사전의 합집합이다.
+    dict.db       추측으로 인정되는 자모 입력열 전부 + 표제어의 뜻풀이.
+                  자모 입력열은 두 사전의 합집합이다.
                   합집합인 이유는 지금 통과하던 말이 갑자기 거부되지 않게 하려는 것.
                   서버만 읽는다(server/dict.js). 브라우저로 내려보내지 않는다 —
                   십수만 개를 통으로 받게 하면 첫 화면이 무거워진다.
                   화면은 /valid 로 물어본다.
+                  뜻풀이는 판이 끝났을 때와 직접 출제할 때 보여 준다.
+                  이것도 브라우저로 내려보내지 않는다(9MB 다). /define 으로 묻는다.
+                  기초사전 뜻이 있으면 그것을 먼저 쓴다 — 배우는 사람을 위해
+                  쓴 문장이라 읽기 쉽다. 없으면 표준대사전 것을 쓴다.
     answers-N.js  정답 후보(한글 그대로). 기초사전 명사 전부.
                   작아서(길이당 1~7천 개) 화면이 그대로 받는다.
                   자모 분해는 실행 시점에 js/jamo.js 가 한다.
@@ -132,8 +137,43 @@ def stdict_word(info):
     return word if word and HANGUL_ONLY.match(word) else None
 
 
-def write_db(words):
-    """추측 허용 목록을 SQLite 한 파일로. server/dict.js 가 읽기 전용으로 연다.
+def write_senses(con, senses):
+    """뜻풀이. 표제어(한글)로 찾는다 — 자모열이 아니라.
+
+    /define 은 이미 무슨 단어인지 아는 상태에서 부른다(정답을 맞혔거나,
+    출제하려고 친 단어다). 자모열로 찾으면 동음이의어가 한 덩어리로 나와
+    엉뚱한 뜻이 섞인다.
+
+    src 는 어느 사전에서 왔는지다. 화면이 쓰지는 않지만, 뜻풀이가 이상할 때
+    어느 원본을 봐야 하는지 알려면 필요하다.
+    """
+    con.execute("CREATE TABLE senses (word TEXT NOT NULL, seq INTEGER NOT NULL,"
+                " src TEXT NOT NULL, definition TEXT NOT NULL,"
+                " PRIMARY KEY (word, seq)) WITHOUT ROWID")
+    rows = []
+    for word, items in senses.items():
+        for i, (src, text) in enumerate(items):
+            rows.append((word, i, src, text))
+    con.executemany("INSERT INTO senses (word, seq, src, definition)"
+                    " VALUES (?, ?, ?, ?)", rows)
+    return len(rows)
+
+
+def write_answers(con, answers):
+    """정답 후보. 서버가 추천 단어를 뽑을 때 쓴다(/suggest).
+
+    answers-N.js 와 같은 내용이지만 저기는 브라우저가 쓰고 여기는 서버가 쓴다.
+    출제 화면은 자기가 노는 길이의 파일만 받아 두므로, 다른 길이를 추천하려면
+    서버가 알고 있어야 한다.
+    """
+    con.execute("CREATE TABLE answers (n INTEGER NOT NULL, word TEXT NOT NULL,"
+                " PRIMARY KEY (n, word)) WITHOUT ROWID")
+    con.executemany("INSERT INTO answers (n, word) VALUES (?, ?)",
+                    ((n, w) for n in LENGTHS for w in answers[n]))
+
+
+def write_db(words, senses, answers):
+    """추측 허용 목록과 뜻풀이를 SQLite 한 파일로. server/dict.js 가 읽기 전용으로 연다.
 
     WITHOUT ROWID 는 표 자체를 (n, jamo) 색인으로 만든다. 우리가 하는 질문이
     '이 자모열이 있느냐' 하나뿐이라, 따로 색인을 달지 않아도 그 색인만 짚으면
@@ -150,9 +190,12 @@ def write_db(words):
                 " PRIMARY KEY (n, jamo)) WITHOUT ROWID")
     con.executemany("INSERT INTO words (n, jamo) VALUES (?, ?)",
                     ((n, jamo) for n in LENGTHS for jamo in words[n]))
+    n_senses = write_senses(con, senses)
+    write_answers(con, answers)
     con.commit()
     con.execute("VACUUM")
     con.close()
+    return n_senses
 
 
 def main():
@@ -161,7 +204,9 @@ def main():
 
     words = defaultdict(dict)    # 길이 -> {자모열: 대표 단어}  (추측 허용)
     answers = defaultdict(list)  # 길이 -> [단어]                (정답 후보)
+    senses = defaultdict(list)   # 단어 -> [(출처, 뜻풀이)]
     seen_answer = defaultdict(set)
+    seen_sense = set()           # (단어, 뜻풀이) — 같은 뜻이 두 번 들어가지 않게
     stats = defaultdict(int)
 
     # --- 한국어기초사전: 정답 후보이자 추측 허용 ---
@@ -191,6 +236,14 @@ def main():
                 continue
 
             words[n].setdefault(jamo, word)
+
+            sense = entry.get("Sense")
+            for node in (sense if isinstance(sense, list) else [sense] if sense else []):
+                text = (feats(node).get("definition") or "").strip()
+                if text and (word, text) not in seen_sense:
+                    seen_sense.add((word, text))
+                    senses[word].append(("krdict", text))
+
             # 등급으로 거르지 않는다. 학습자 사전에 실렸다는 것이 곧 기준이다.
             if word not in seen_answer[n]:
                 seen_answer[n].add(word)
@@ -224,10 +277,21 @@ def main():
         # setdefault 라 기초사전 표기가 이긴다. 같은 자모열이면 그쪽이 흔한 말이다.
         words[n].setdefault(jamo, word)
 
+        # 기초사전 뜻이 이미 있으면 뒤에 붙는다. 화면은 앞에서부터 보여 주므로
+        # 읽기 쉬운 쪽이 먼저 나온다.
+        for pos in info.get("pos_info", []):
+            for pat in pos.get("comm_pattern_info", []):
+                for si in pat.get("sense_info", []):
+                    text = (si.get("definition") or "").strip()
+                    if text and (word, text) not in seen_sense:
+                        seen_sense.add((word, text))
+                        senses[word].append(("stdict", text))
+
     stats["total_jamo"] = sum(len(v) for v in words.values())
 
     OUT.mkdir(parents=True, exist_ok=True)
-    write_db(words)
+    stats["senses"] = write_db(words, senses, answers)
+    stats["sense_words"] = len(senses)
     for n in LENGTHS:
         (OUT / f"answers-{n}.js").write_text(
             "window.ANSWERS=window.ANSWERS||{};ANSWERS[%d]=%s;\n" % (n, json.dumps(sorted(answers[n]), ensure_ascii=False)),
@@ -236,6 +300,7 @@ def main():
         print(f"자모 {n}개: 추측 허용 {len(words[n]):>7,}개 / 정답 후보 {len(answers[n]):>6,}개")
     print(f"\n{DB.relative_to(ROOT)}  {DB.stat().st_size >> 10:,}KB"
           f"  (기초사전만이면 {stats['krdict_jamo']:,} → 합쳐서 {stats['total_jamo']:,})")
+    print(f"뜻풀이 {stats['senses']:,}개 / 표제어 {stats['sense_words']:,}개")
 
     print("\n[통계]", dict(stats))
 

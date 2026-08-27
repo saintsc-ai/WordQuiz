@@ -360,6 +360,8 @@
   document.getElementById('btn-help').addEventListener('click', function () {
     Compose.showHelp({
       play: playWord,
+      // 추천 단어를 지금 놀던 길이로 뽑기 위해 알려 준다.
+      length: function () { return game ? game.length : null; },
       copyLink: function () { Share.copyThen(Share.linkFor(game.answer), '문제 링크를 복사했어요'); }
     });
   });

@@ -243,6 +243,9 @@
       '<h2>' + (ctx.sharedResult ? '공유받은 결과' : (won ? '정답입니다 🎉' : '아쉬워요')) + '</h2>' +
       (ctx.sharedResult ? '<div class="answer hidden-answer">공유된 결과</div>'
                         : '<div class="answer">' + Share.escapeHtml(game.answer) + '</div>') +
+      // 공유받은 결과는 정답을 감추는 화면이다. 뜻풀이를 보여 주면 그걸로
+      // 답이 드러나므로 자리 자체를 만들지 않는다.
+      (ctx.sharedResult ? '' : '<div class="senses" id="result-senses"></div>') +
       '<p style="text-align:center">' +
         (won ? game.rows.length + '번 만에 맞혔어요' : MAX_TRIES + '번 안에 못 맞혔어요') +
       '</p>' +
@@ -264,6 +267,12 @@
         '<button type="button" class="primary" id="act-again">한 판 더</button>' +
       '</div>'
     );
+
+    // 뜻풀이는 늦게 온다. 시트는 먼저 뜨고 그 자리에 나중에 채워진다 —
+    // 사전을 못 불러와도 결과 화면은 그대로 쓸 수 있어야 한다.
+    if (!ctx.sharedResult && global.Define) {
+      global.Define.fill(document.getElementById('result-senses'), game.answer);
+    }
 
     document.getElementById('act-again').addEventListener('click', function () {
       Sheet.close();

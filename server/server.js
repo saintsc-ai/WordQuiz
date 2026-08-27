@@ -13,6 +13,8 @@
  *   GET  /api?action=daily|overall&mode=total|time|score[&date=&length=]
  *   POST /api   {"action":"submit", ...}
  *   GET  /valid?n=6&w=<자모열>[&w=...]
+ *   GET  /define?w=<단어>          뜻풀이
+ *   GET  /suggest?n=6              출제용 추천 단어 + 뜻풀이
  *
  * /valid 는 사전이 서버에만 있어서 생긴 주소다. 예전에는 data/words-N.js 를
  * 화면이 통으로 받아 혼자 판정했는데, 표제어가 수십만 개로 늘면서 그러기에는
@@ -120,6 +122,45 @@ function getValid(res, url) {
     'Cache-Control': 'public, max-age=3600'
   });
   res.end(JSON.stringify({ ok: true, valid: valid }));
+}
+
+/*
+ * 뜻풀이. 판이 끝났을 때와 직접 출제할 때 화면이 단어 하나를 물어본다.
+ *
+ * 뜻풀이가 없는 단어도 200 에 빈 배열로 답한다 — 사전에 있지만 뜻이 안 실린
+ * 경우가 있고, 그때 화면이 오류를 띄울 일은 아니다. 뜻이 있으면 보여 주고
+ * 없으면 그 자리를 비우면 된다.
+ */
+function getDefine(res, url) {
+  var word = (url.searchParams.get('w') || '').trim();
+  if (!word) return json(res, { ok: false, error: 'no_word' });
+  if (word.length > 12) return json(res, { ok: false, error: 'bad_word' });
+
+  var senses = words ? words.define(word) : [];
+  res.writeHead(200, {
+    'Content-Type': 'application/json; charset=utf-8',
+    'Cache-Control': 'public, max-age=86400'
+  });
+  res.end(JSON.stringify({ ok: true, word: word, senses: senses }));
+}
+
+/*
+ * 출제할 단어 추천. 정답 후보에서 뽑으므로 받은 사람이 풀 수 있다.
+ * 뜻풀이도 함께 보내 화면이 한 번 더 묻지 않게 한다.
+ */
+function getSuggest(res, url) {
+  var n = Number(url.searchParams.get('n'));
+  if (!(n >= 5 && n <= 10)) return json(res, { ok: false, error: 'bad_length' });
+
+  var word = words ? words.suggest(n) : null;
+  if (!word) return json(res, { ok: false, error: 'no_answers' });
+
+  // 무작위라 캐시하면 안 된다.
+  res.writeHead(200, {
+    'Content-Type': 'application/json; charset=utf-8',
+    'Cache-Control': 'no-store'
+  });
+  res.end(JSON.stringify({ ok: true, word: word, senses: words.define(word) }));
 }
 
 function getRank(res, url) {
@@ -241,6 +282,14 @@ var server = http.createServer(function (req, res) {
 
     if (url.pathname === '/valid' && (req.method === 'GET' || req.method === 'HEAD')) {
       return getValid(res, url);
+    }
+
+    if (url.pathname === '/define' && (req.method === 'GET' || req.method === 'HEAD')) {
+      return getDefine(res, url);
+    }
+
+    if (url.pathname === '/suggest' && (req.method === 'GET' || req.method === 'HEAD')) {
+      return getSuggest(res, url);
     }
 
     if (url.pathname === '/api') {

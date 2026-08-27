@@ -13,7 +13,7 @@
   /**
    * 낼 단어를 고르는 시트. onPlay(word) 를 주면 '바로 풀기'가 그 단어로 시작한다.
    */
-  function showCompose(onPlay) {
+  function showCompose(onPlay, currentLength) {
     Sheet.open(
       '<h2>직접 출제</h2>' +
       '<p class="hint">사전에 있는 명사를 넣으면 그 단어로 푸는 링크를 만듭니다.<br>' +
@@ -21,8 +21,10 @@
       '<input class="compose-input" id="cw" type="text" placeholder="예: 사랑" aria-label="낼 단어"' +
         ' autocomplete="off" autocapitalize="off" spellcheck="false" maxlength="12">' +
       '<p class="compose-status" id="cs" role="status">한글 명사를 입력하세요</p>' +
+      '<div class="senses" id="compose-senses"></div>' +
       '<input class="compose-link" id="cl" type="text" aria-label="출제 링크" readonly hidden>' +
       '<div class="sheet-actions">' +
+        '<button type="button" id="act-suggest">추천 단어</button>' +
         '<button type="button" id="act-play" disabled>바로 풀기</button>' +
         '<button type="button" class="primary" id="act-copy" disabled>링크 복사</button>' +
       '</div>',
@@ -34,6 +36,8 @@
     var linkBox = document.getElementById('cl');
     var playBtn = document.getElementById('act-play');
     var copyBtn = document.getElementById('act-copy');
+    var senses = document.getElementById('compose-senses');
+    var suggestBtn = document.getElementById('act-suggest');
     var word = null;   // 지금 유효한 단어
     var seq = 0;       // 사전 로딩이 늦게 끝난 결과가 최신 입력을 덮지 않게
 
@@ -47,6 +51,17 @@
         linkBox.hidden = false;
       } else {
         linkBox.hidden = true;
+      }
+      // 뜻풀이는 낼 수 있는 단어일 때만 보여 준다. 동음이의어를 헷갈리지 않고
+      // 의도한 단어가 맞는지 여기서 확인할 수 있다.
+      if (senses) {
+        senses.textContent = '';
+        if (word && global.Define) {
+          var mine = seq;
+          global.Define.of(word).then(function (list) {
+            if (mine === seq) global.Define.render(senses, list);
+          });
+        }
       }
     }
 
@@ -70,6 +85,23 @@
         if (my === seq) setState('사전을 불러오지 못했습니다', 'bad');
       });
     }
+
+    /*
+     * 추천 단어. 정답 후보에서 뽑으므로 받은 사람이 풀 수 있다.
+     * 지금 놀던 길이로 뽑는다 — 6칸을 풀다 출제하러 왔으면 6칸이 자연스럽다.
+     */
+    suggestBtn.addEventListener('click', function () {
+      if (!global.Define) return;
+      var n = currentLength || LENGTHS[0];
+      suggestBtn.disabled = true;
+      setState('추천 단어를 고르는 중…', '');
+      global.Define.suggest(n).then(function (got) {
+        suggestBtn.disabled = false;
+        if (!got) { setState('추천 단어를 가져오지 못했어요', 'bad'); return; }
+        input.value = got.word;
+        check();
+      });
+    });
 
     input.addEventListener('input', check);
     input.addEventListener('keydown', function (e) {
@@ -126,7 +158,7 @@
     );
     document.getElementById('act-link2').addEventListener('click', onCompose.copyLink);
     document.getElementById('act-compose2').addEventListener('click', function () {
-      showCompose(onCompose.play);
+      showCompose(onCompose.play, onCompose.length && onCompose.length());
     });
 
     var themeTabs = Sheet.body().querySelectorAll('[data-theme-mode]');
