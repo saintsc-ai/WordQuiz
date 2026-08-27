@@ -174,7 +174,7 @@
     if (o.left === 1) return '범위를 잘 좁혔네요 — 마지막 한 단어였어요';
     if (o.left > 100) return '잘 찍었네요 — ' + many + '개 중 하나였어요';
     if (o.left > 10) return '운이 좋네요 — ' + many + '개 중 하나였어요';
-    return '거의 다 좁혔네요 — ' + many + '개 중 하나였어요';
+    return '접근을 잘했네요 — ' + many + '개 중 하나였어요';
   }
 
   global.Define = { of: of, suggest: suggest, render: render, fill: fill,
