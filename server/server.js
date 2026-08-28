@@ -13,7 +13,7 @@
  *   GET  /api?action=daily|overall&mode=total|time|score[&date=&length=]
  *   POST /api   {"action":"submit", ...}
  *   GET  /valid?n=6&w=<자모열>[&w=...]
- *   GET  /define?w=<단어>          뜻풀이
+ *   GET  /define?w=<단어>          뜻풀이 + 어휘등급
  *   GET  /suggest?n=6              출제용 추천 단어 + 뜻풀이
  *
  * /valid 는 사전이 서버에만 있어서 생긴 주소다. 예전에는 data/words-N.js 를
@@ -137,11 +137,12 @@ function getDefine(res, url) {
   if (word.length > 12) return json(res, { ok: false, error: 'bad_word' });
 
   var senses = words ? words.define(word) : [];
+  var level = words ? words.level(word) : null;
   res.writeHead(200, {
     'Content-Type': 'application/json; charset=utf-8',
     'Cache-Control': 'public, max-age=86400'
   });
-  res.end(JSON.stringify({ ok: true, word: word, senses: senses }));
+  res.end(JSON.stringify({ ok: true, word: word, level: level, senses: senses }));
 }
 
 /*
@@ -160,7 +161,8 @@ function getSuggest(res, url) {
     'Content-Type': 'application/json; charset=utf-8',
     'Cache-Control': 'no-store'
   });
-  res.end(JSON.stringify({ ok: true, word: word, senses: words.define(word) }));
+  res.end(JSON.stringify({ ok: true, word: word, level: words.level(word),
+                           senses: words.define(word) }));
 }
 
 function getRank(res, url) {

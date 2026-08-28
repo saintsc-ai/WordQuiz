@@ -260,6 +260,9 @@
     return text ? '<p class="odds">' + Share.escapeHtml(text) + '</p>' : '';
   }
 
+  // 등급마다 색을 달리 준다. 클래스 이름에 한글을 쓰지 않으려고 표로 옮긴다.
+  var LEVEL_CLASS = { '초급': 'basic', '중급': 'mid', '고급': 'adv' };
+
   function showResult(ctx) {
     var game = ctx.game;
     var won = game.status === 'win';
@@ -276,6 +279,7 @@
                         : '<div class="answer">' + Share.escapeHtml(game.answer) + '</div>') +
       // 공유받은 결과는 정답을 감추는 화면이다. 뜻풀이를 보여 주면 그걸로
       // 답이 드러나므로 자리 자체를 만들지 않는다.
+      (ctx.sharedResult ? '' : '<p class="word-level" id="result-level" hidden></p>') +
       (ctx.sharedResult ? '' : '<div class="senses" id="result-senses"></div>') +
       '<p style="text-align:center">' +
         (won ? game.rows.length + '번 만에 맞혔어요' : MAX_TRIES + '번 안에 못 맞혔어요') +
@@ -305,7 +309,16 @@
     // 뜻풀이는 늦게 온다. 시트는 먼저 뜨고 그 자리에 나중에 채워진다 —
     // 사전을 못 불러와도 결과 화면은 그대로 쓸 수 있어야 한다.
     if (!ctx.sharedResult && global.Define) {
-      global.Define.fill(document.getElementById('result-senses'), game.answer);
+      global.Define.fill(document.getElementById('result-senses'), game.answer)
+        .then(function (info) {
+          // 어휘등급은 단어에 붙은 값이지 그 판의 난이도가 아니다.
+          // 그래서 '이 판은 고급' 이 아니라 '고급 단어' 라고 적는다.
+          var el = document.getElementById('result-level');
+          if (!el || !info || !info.level) return;
+          el.textContent = info.level + ' 단어';
+          el.className = 'word-level level-' + LEVEL_CLASS[info.level];
+          el.hidden = false;
+        });
     }
 
     document.getElementById('act-again').addEventListener('click', function () {

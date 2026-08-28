@@ -13,6 +13,8 @@
   /**
    * 낼 단어를 고르는 시트. onPlay(word) 를 주면 '바로 풀기'가 그 단어로 시작한다.
    */
+  var LEVEL_CLASS = { '초급': 'basic', '중급': 'mid', '고급': 'adv' };
+
   function showCompose(onPlay, currentLength) {
     Sheet.open(
       '<h2>직접 출제</h2>' +
@@ -21,6 +23,7 @@
       '<input class="compose-input" id="cw" type="text" placeholder="예: 사랑" aria-label="낼 단어"' +
         ' autocomplete="off" autocapitalize="off" spellcheck="false" maxlength="12">' +
       '<p class="compose-status" id="cs" role="status">한글 명사를 입력하세요</p>' +
+      '<p class="word-level" id="compose-level" hidden></p>' +
       '<div class="senses" id="compose-senses"></div>' +
       '<input class="compose-link" id="cl" type="text" aria-label="출제 링크" readonly hidden>' +
       '<div class="sheet-actions">' +
@@ -37,6 +40,7 @@
     var playBtn = document.getElementById('act-play');
     var copyBtn = document.getElementById('act-copy');
     var senses = document.getElementById('compose-senses');
+    var levelTag = document.getElementById('compose-level');
     var suggestBtn = document.getElementById('act-suggest');
     var word = null;   // 지금 유효한 단어
     var seq = 0;       // 사전 로딩이 늦게 끝난 결과가 최신 입력을 덮지 않게
@@ -54,12 +58,20 @@
       }
       // 뜻풀이는 낼 수 있는 단어일 때만 보여 준다. 동음이의어를 헷갈리지 않고
       // 의도한 단어가 맞는지 여기서 확인할 수 있다.
+      if (levelTag) levelTag.hidden = true;
       if (senses) {
         senses.textContent = '';
         if (word && global.Define) {
           var mine = seq;
-          global.Define.of(word).then(function (list) {
-            if (mine === seq) global.Define.render(senses, list);
+          global.Define.infoOf(word).then(function (info) {
+            if (mine !== seq) return;
+            global.Define.render(senses, info.senses);
+            // 어떤 등급의 말을 내는지 보이면 받는 사람을 생각해 고를 수 있다.
+            if (levelTag && info.level) {
+              levelTag.textContent = info.level + ' 단어';
+              levelTag.className = 'word-level level-' + LEVEL_CLASS[info.level];
+              levelTag.hidden = false;
+            }
           });
         }
       }

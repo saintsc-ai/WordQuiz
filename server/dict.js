@@ -67,6 +67,19 @@ function open(file) {
     ? db.prepare('SELECT word FROM answers WHERE n = ? ORDER BY RANDOM() LIMIT 1')
     : null;
 
+  /*
+   * 어휘등급(초급·중급·고급). 정답 후보에만 있다 — 기초사전에서 온 값이고,
+   * 표준대사전에만 있는 말은 등급이 없다. 등급 칸이 없는 옛 사전 파일이면
+   * 조용히 null 을 돌려준다.
+   */
+  var hasLevel = hasAnswers && db.prepare(
+    "SELECT 1 FROM pragma_table_info('answers') WHERE name = 'level'"
+  ).get() !== undefined;
+
+  var levelOf = hasLevel
+    ? db.prepare('SELECT level FROM answers WHERE word = ? LIMIT 1')
+    : null;
+
   return {
     size: size,
     /** 이 길이의 사전에 있는 자모열인가. */
@@ -75,6 +88,12 @@ function open(file) {
     define: function (word, limit) {
       if (!senses) return [];
       return senses.all(word, limit || 8).map(function (r) { return r.definition; });
+    },
+    /** 표제어의 어휘등급. 없으면 null. */
+    level: function (word) {
+      if (!levelOf) return null;
+      var row = levelOf.get(word);
+      return (row && row.level) || null;
     },
     /** 그 길이의 정답 후보 하나. 없으면 null. */
     suggest: function (n) {

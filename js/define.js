@@ -29,17 +29,35 @@
    * 단어의 뜻풀이. 실패해도 빈 배열로 답한다 — 뜻을 못 불러왔다고 결과 화면이
    * 깨지면 안 된다. 실패한 Promise 는 캐시에서 지워 다음에 다시 시도한다.
    */
-  function of(word) {
-    if (!word) return Promise.resolve([]);
+  function infoOf(word) {
+    if (!word) return Promise.resolve({ senses: [], level: null });
     if (cache[word]) return cache[word];
     var pending = get(DEFINE_URL + '?w=' + encodeURIComponent(word))
-      .then(function (data) { return (data && data.ok && data.senses) || []; })
+      .then(function (data) {
+        if (!data || !data.ok) return { senses: [], level: null };
+        return { senses: data.senses || [], level: data.level || null };
+      })
       .catch(function () {
         delete cache[word];
-        return [];
+        return { senses: [], level: null };
       });
     cache[word] = pending;
     return pending;
+  }
+
+  /** 뜻풀이만. 예전 호출부가 배열을 기대하므로 모양을 지킨다. */
+  function of(word) {
+    return infoOf(word).then(function (info) { return info.senses; });
+  }
+
+  /**
+   * 어휘등급(초급·중급·고급). 없으면 null.
+   *
+   * 단어에 붙은 등급이지 그 판의 난이도가 아니다. 고급 단어라도 자모가
+   * 독특하면 한 번에 걸리고, 초급 단어라도 비슷한 말이 많으면 못 좁힌다.
+   */
+  function levelOf(word) {
+    return infoOf(word).then(function (info) { return info.level; });
   }
 
   /**
@@ -50,8 +68,9 @@
     return get(SUGGEST_URL + '?n=' + encodeURIComponent(n))
       .then(function (data) {
         if (!data || !data.ok || !data.word) return null;
-        cache[data.word] = Promise.resolve(data.senses || []);
-        return { word: data.word, senses: data.senses || [] };
+        var info = { senses: data.senses || [], level: data.level || null };
+        cache[data.word] = Promise.resolve(info);
+        return { word: data.word, senses: info.senses, level: info.level };
       })
       .catch(function () { return null; });
   }
@@ -92,9 +111,9 @@
 
   /** 단어를 물어 그 자리에 그린다. 흔한 쓰임을 한 줄로 묶어 둔다. */
   function fill(el, word) {
-    return of(word).then(function (senses) {
-      render(el, senses);
-      return senses;
+    return infoOf(word).then(function (info) {
+      render(el, info.senses);
+      return info;
     });
   }
 
@@ -177,6 +196,6 @@
     return '접근을 잘했네요 — ' + many + '개 중 하나였어요';
   }
 
-  global.Define = { of: of, suggest: suggest, render: render, fill: fill,
-                    odds: odds, oddsText: oddsText };
+  global.Define = { of: of, infoOf: infoOf, levelOf: levelOf, suggest: suggest,
+                    render: render, fill: fill, odds: odds, oddsText: oddsText };
 })(window);

@@ -48,6 +48,12 @@ DB = OUT / "dict.db"
 
 LENGTHS = (5, 6, 7, 8, 9, 10)
 
+# 어휘등급. 출제 범위를 고르는 데는 쓰지 않지만(정답 후보는 기초사전 전부다),
+# 판이 끝난 뒤 '이 단어는 어느 등급이었나' 를 알려 주는 데 쓴다.
+# 한 단어가 여러 항목으로 실려 등급이 갈리면 가장 쉬운 것을 쓴다 —
+# 초급에서 가르치는 말이면 초급인 것이 맞다.
+LEVEL_ORDER = {"초급": 0, "중급": 1, "고급": 2}
+
 CHO = "ㄱㄲㄴㄷㄸㄹㅁㅂㅃㅅㅆㅇㅈㅉㅊㅋㅌㅍㅎ"
 JUNG = "ㅏㅐㅑㅒㅓㅔㅕㅖㅗㅘㅙㅚㅛㅜㅝㅞㅟㅠㅡㅢㅣ"
 JONG = " ㄱㄲㄳㄴㄵㄶㄷㄹㄺㄻㄼㄽㄾㄿㅀㅁㅂㅄㅅㅆㅇㅈㅊㅋㅌㅍㅎ"
@@ -159,7 +165,16 @@ def write_senses(con, senses):
     return len(rows)
 
 
-def write_answers(con, answers):
+def easier(a, b):
+    """둘 중 더 쉬운 등급. 모르는 값은 진다."""
+    if a is None:
+        return b
+    if b is None:
+        return a
+    return a if LEVEL_ORDER.get(a, 9) <= LEVEL_ORDER.get(b, 9) else b
+
+
+def write_answers(con, answers, levels):
     """정답 후보. 서버가 추천 단어를 뽑을 때 쓴다(/suggest).
 
     answers-N.js 와 같은 내용이지만 저기는 브라우저가 쓰고 여기는 서버가 쓴다.
@@ -167,12 +182,12 @@ def write_answers(con, answers):
     서버가 알고 있어야 한다.
     """
     con.execute("CREATE TABLE answers (n INTEGER NOT NULL, word TEXT NOT NULL,"
-                " PRIMARY KEY (n, word)) WITHOUT ROWID")
-    con.executemany("INSERT INTO answers (n, word) VALUES (?, ?)",
-                    ((n, w) for n in LENGTHS for w in answers[n]))
+                " level TEXT, PRIMARY KEY (n, word)) WITHOUT ROWID")
+    con.executemany("INSERT INTO answers (n, word, level) VALUES (?, ?, ?)",
+                    ((n, w, levels.get(w)) for n in LENGTHS for w in answers[n]))
 
 
-def write_db(words, senses, answers):
+def write_db(words, senses, answers, levels):
     """추측 허용 목록과 뜻풀이를 SQLite 한 파일로. server/dict.js 가 읽기 전용으로 연다.
 
     WITHOUT ROWID 는 표 자체를 (n, jamo) 색인으로 만든다. 우리가 하는 질문이
@@ -191,7 +206,7 @@ def write_db(words, senses, answers):
     con.executemany("INSERT INTO words (n, jamo) VALUES (?, ?)",
                     ((n, jamo) for n in LENGTHS for jamo in words[n]))
     n_senses = write_senses(con, senses)
-    write_answers(con, answers)
+    write_answers(con, answers, levels)
     con.commit()
     con.execute("VACUUM")
     con.close()
@@ -205,6 +220,7 @@ def main():
     words = defaultdict(dict)    # 길이 -> {자모열: 대표 단어}  (추측 허용)
     answers = defaultdict(list)  # 길이 -> [단어]                (정답 후보)
     senses = defaultdict(list)   # 단어 -> [(출처, 뜻풀이)]
+    levels = {}                  # 단어 -> 어휘등급 (가장 쉬운 것)
     seen_answer = defaultdict(set)
     seen_sense = set()           # (단어, 뜻풀이) — 같은 뜻이 두 번 들어가지 않게
     stats = defaultdict(int)
@@ -243,6 +259,8 @@ def main():
                 if text and (word, text) not in seen_sense:
                     seen_sense.add((word, text))
                     senses[word].append(("krdict", text))
+
+            levels[word] = easier(levels.get(word), meta.get("vocabularyLevel"))
 
             # 등급으로 거르지 않는다. 학습자 사전에 실렸다는 것이 곧 기준이다.
             if word not in seen_answer[n]:
@@ -290,7 +308,7 @@ def main():
     stats["total_jamo"] = sum(len(v) for v in words.values())
 
     OUT.mkdir(parents=True, exist_ok=True)
-    stats["senses"] = write_db(words, senses, answers)
+    stats["senses"] = write_db(words, senses, answers, levels)
     stats["sense_words"] = len(senses)
     for n in LENGTHS:
         (OUT / f"answers-{n}.js").write_text(
