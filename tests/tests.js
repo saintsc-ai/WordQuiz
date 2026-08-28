@@ -32,6 +32,36 @@
     t.eq('궤 → 미지원(ㅞ)', Jamo.decompose('궤'), null);
     t.eq('영문은 거부', Jamo.decompose('abc'), null);
     t.eq('자모만 있는 글자도 거부', Jamo.decompose('ㄱㄴ'), null);
+
+    // 물리 자판으로 친 겹자모를 24키로 펴는가 (js/jamo.js 의 keysFor)
+    t.eq('ㅐ 는 ㅏㅣ 로 펴진다', Jamo.keysFor('ㅐ'), 'ㅏㅣ');
+    t.eq('ㅔ 는 ㅓㅣ 로 펴진다', Jamo.keysFor('ㅔ'), 'ㅓㅣ');
+    t.eq('ㅒ 도 편다', Jamo.keysFor('ㅒ'), 'ㅑㅣ');
+    t.eq('쌍자음도 편다', Jamo.keysFor('ㄲ'), 'ㄱㄱ');
+    t.eq('원래 키는 그대로', Jamo.keysFor('ㄱ'), 'ㄱ');
+    t.eq('원래 키는 그대로 (모음)', Jamo.keysFor('ㅏ'), 'ㅏ');
+    t.eq('미지원 모음은 받지 않는다', Jamo.keysFor('ㅙ'), '');
+    t.eq('영문은 받지 않는다', Jamo.keysFor('a'), '');
+    t.eq('기능키는 받지 않는다', Jamo.keysFor('Shift'), '');
+
+    /*
+     * 이 기능의 요점: 한글 자판으로 한 글자씩 친 결과가, 퍼즐이 쓰는
+     * 자모열과 정확히 같아야 한다. 다르면 친 사람만 억울해진다.
+     */
+    ['배', '게', '얘기', '깨', '의사'].forEach(function (word) {
+      var typed = '';
+      for (var i = 0; i < word.length; i++) {
+        var code = word.charCodeAt(i) - 0xac00;
+        var cho = ['ㄱ','ㄲ','ㄴ','ㄷ','ㄸ','ㄹ','ㅁ','ㅂ','ㅃ','ㅅ','ㅆ',
+                   'ㅇ','ㅈ','ㅉ','ㅊ','ㅋ','ㅌ','ㅍ','ㅎ'][Math.floor(code / 588)];
+        var jung = ['ㅏ','ㅐ','ㅑ','ㅒ','ㅓ','ㅔ','ㅕ','ㅖ','ㅗ','ㅘ','ㅙ','ㅚ','ㅛ',
+                    'ㅜ','ㅝ','ㅞ','ㅟ','ㅠ','ㅡ','ㅢ','ㅣ'][Math.floor(code / 28) % 21];
+        var jong = ['','ㄱ','ㄲ','ㄳ','ㄴ','ㄵ','ㄶ','ㄷ','ㄹ','ㄺ','ㄻ','ㄼ','ㄽ','ㄾ',
+                    'ㄿ','ㅀ','ㅁ','ㅂ','ㅄ','ㅅ','ㅆ','ㅇ','ㅈ','ㅊ','ㅋ','ㅌ','ㅍ','ㅎ'][code % 28];
+        typed += Jamo.keysFor(cho) + Jamo.keysFor(jung) + (jong ? Jamo.keysFor(jong) : '');
+      }
+      t.eq('자판으로 친 ' + word + ' = 퍼즐의 ' + word, typed, Jamo.decompose(word));
+    });
     t.eq('빈 문자열은 빈 결과', Jamo.decompose(''), '');
     t.ok('자판은 24키', Jamo.CONSONANTS.length + Jamo.VOWELS.length === 24);
     t.ok('분해 결과는 전부 자판 키', ['안녕', '꽃', '사과', '닭', '값', '의사'].every(function (w) {

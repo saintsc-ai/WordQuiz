@@ -61,6 +61,22 @@
     return out;
   }
 
+  /*
+   * 물리 자판에서 키 하나로 들어온 자모를, 이 게임의 24키 입력열로 편다.
+   *
+   * 두벌식에는 이 게임에 없는 키가 있다 — ㅐ ㅔ 는 각각 한 키이고 쌍자음도
+   * 시프트 한 번이다. 그대로 버리면 친 사람은 자판이 먹통이라고 느낀다.
+   * decompose 가 단어에 대해 하는 일을, 자모 하나에 대해 하는 셈이다.
+   *
+   * 키가 아닌 것(영문·기능키)과 미지원 자모(ㅙ ㅞ)는 빈 문자열이다 —
+   * 부르는 쪽이 그것으로 '받지 않음' 을 판단한다.
+   */
+  function keysFor(ch) {
+    if (UNSUPPORTED[ch]) return '';
+    if (EXPAND[ch]) return EXPAND[ch];
+    return KEYS[ch] ? ch : '';
+  }
+
   function isConsonant(key) { return CONSONANTS.indexOf(key) >= 0; }
   function isVowel(key) { return VOWELS.indexOf(key) >= 0; }
 
@@ -69,6 +85,7 @@
     VOWELS: VOWELS,
     KEYS: KEYS,
     decompose: decompose,
+    keysFor: keysFor,
     isConsonant: isConsonant,
     isVowel: isVowel
   };

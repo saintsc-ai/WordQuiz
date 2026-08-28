@@ -22,7 +22,7 @@
 
   // 물리 키보드(영문 자판 기준 두벌식 자리)
   var QWERTY = {
-    q: 'ㅂ', w: 'ㅈ', e: 'ㄷ', r: 'ㄱ', t: 'ㅅ', y: 'ㅛ', u: 'ㅕ', i: 'ㅑ',
+    q: 'ㅂ', w: 'ㅈ', e: 'ㄷ', r: 'ㄱ', t: 'ㅅ', y: 'ㅛ', u: 'ㅕ', i: 'ㅑ', o: 'ㅐ', p: 'ㅔ',
     a: 'ㅁ', s: 'ㄴ', d: 'ㅇ', f: 'ㄹ', g: 'ㅎ', h: 'ㅗ', j: 'ㅓ', k: 'ㅏ', l: 'ㅣ',
     z: 'ㅋ', x: 'ㅌ', c: 'ㅊ', v: 'ㅍ', b: 'ㅠ', n: 'ㅜ', m: 'ㅡ'
   };
@@ -181,9 +181,13 @@
     if (!game) return;
     if (e.key === 'Backspace') { e.preventDefault(); onBack(); return; }
     if (e.key === 'Enter') { e.preventDefault(); onSubmit(); return; }
-    var k = QWERTY[e.key.toLowerCase()];
-    if (!k && global.Jamo.KEYS[e.key]) k = e.key;   // 한글 자판으로 직접 친 경우
-    if (k) { e.preventDefault(); onType(k); }
+    // 영문 자판이면 QWERTY 로 옮기고, 한글 자판이면 친 자모가 그대로 온다.
+    // 어느 쪽이든 ㅐ ㅔ 처럼 한 키인 겹자모가 섞이므로 24키로 펴서 받는다.
+    var keys = global.Jamo.keysFor(QWERTY[e.key.toLowerCase()] || e.key);
+    if (keys) {
+      e.preventDefault();
+      for (var i = 0; i < keys.length; i++) onType(keys[i]);
+    }
   });
 
   /* 게임 진행 ------------------------------------------------------------- */
