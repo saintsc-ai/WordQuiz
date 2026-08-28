@@ -140,17 +140,68 @@
     t.eq('맞히면 win', g.status, 'win');
     t.eq('2번 만에 맞힌 5칸 점수 = 5 * (6-2)', g.score(), 20);
 
-    // 5번 모두 틀리면 lose
+    /*
+     * 5번 모두 틀리면 lose.
+     *
+     * 서로 다른 단어로 틀려야 한다 — 같은 단어를 다시 내는 것은 거부되므로
+     * (triedAt), 한 단어를 다섯 번 내면 줄이 하나만 쌓이고 판이 끝나지 않는다.
+     * 위의 WORDS 는 3개뿐이고 힌트 테스트가 그 개수를 전제하므로, 판을 끝까지
+     * 밀어야 하는 여기서만 사전을 따로 만든다.
+     */
+    var MANY = ['사과', '사랑', '하늘', '구름', '소금', '사람'];   // 전부 자모 5칸
+    var manyValid = {};
+    MANY.forEach(function (w) { manyValid[Jamo.decompose(w)] = 1; });
+    var manyDict = {
+      length: 5,
+      valid: { has: function (k) { return !!manyValid[k]; } },
+      answers: MANY.slice()
+    };
+    t.ok('MANY 도 모두 5칸', MANY.every(function (w) { return Jamo.decompose(w).length === 5; }));
+    var WRONG = ['ㅎㅏㄴㅡㄹ', 'ㅅㅏㄱㅗㅏ', 'ㄱㅜㄹㅡㅁ', 'ㅅㅗㄱㅡㅁ', 'ㅅㅏㄹㅏㅁ'];
+
+    g = new Game(manyDict);
     g.reset('사랑');
-    for (var i = 0; i < Game.MAX_TRIES; i++) {
-      'ㅎㅏㄴㅡㄹ'.split('').forEach(function (k) { g.type(k); });
+    WRONG.forEach(function (jamo) {
+      jamo.split('').forEach(function (k) { g.type(k); });
       g.submit();
-    }
+    });
     t.eq('다 틀리면 lose', g.status, 'lose');
     t.eq('진 판은 0점', g.score(), 0);
     t.eq('끝난 판은 더 못 친다', g.type('ㄱ'), false);
     t.eq('끝난 판 제출은 done', g.submit(), { ok: false, reason: 'done' });
     t.ok('공유 격자에 X/5 가 찍힌다', g.shareText().indexOf('X/' + Game.MAX_TRIES) > 0, g.shareText().split('\n')[0]);
+
+    /* ── 같은 단어를 두 번 내지 못한다 ──────────────
+     *
+     * 다시 내도 새로 알게 되는 것이 없는데 기회만 사라진다. 실수로 같은 줄을
+     * 두 번 올리는 일이 실제로 생긴다.
+     */
+    var r = new Game(manyDict);
+    r.reset('사랑');
+    'ㅎㅏㄴㅡㄹ'.split('').forEach(function (k) { r.type(k); });
+    t.ok('첫 제출은 통과', r.submit().ok === true);
+    t.eq('아직 안 낸 단어는 0', r.triedAt('ㅅㅏㄱㅗㅏ'), 0);
+    t.eq('이미 낸 단어는 줄 번호', r.triedAt('ㅎㅏㄴㅡㄹ'), 1);
+
+    'ㅎㅏㄴㅡㄹ'.split('').forEach(function (k) { r.type(k); });
+    t.eq('같은 단어를 다시 내면 repeat', r.submit(), { ok: false, reason: 'repeat', at: 1 });
+    t.eq('거부됐으니 줄이 늘지 않는다', r.rows.length, 1);
+    t.ok('입력은 그대로 남아 고칠 수 있다', r.current === 'ㅎㅏㄴㅡㄹ');
+
+    // 세 번째 줄과 겹쳐도 그 줄 번호를 알려 준다
+    r.reset('사랑');
+    ['ㅎㅏㄴㅡㄹ', 'ㅅㅏㄱㅗㅏ', 'ㄱㅜㄹㅡㅁ'].forEach(function (jamo) {
+      jamo.split('').forEach(function (k) { r.type(k); });
+      r.submit();
+    });
+    'ㄱㅜㄹㅡㅁ'.split('').forEach(function (k) { r.type(k); });
+    t.eq('세 번째 줄과 겹치면 at=3', r.submit(), { ok: false, reason: 'repeat', at: 3 });
+    t.eq('기회는 그대로 3줄', r.rows.length, 3);
+
+    // 사전에 없는 단어가 먼저 걸러진다 — 낸 적 없는 단어이므로 repeat 가 아니다
+    r.reset('사랑');
+    'ㄴㅗㄹㅏㅣ'.split('').forEach(function (k) { r.type(k); });
+    t.eq('사전에 없는 쪽이 먼저다', r.submit().reason, 'unknown');
 
     /* ── 이미 점수를 등록한 단어는 다시 내지 않는다 ── */
     // skip 이 참인 단어는 무작위 후보에서 빠진다. '하늘' 하나만 남겨 둔다.

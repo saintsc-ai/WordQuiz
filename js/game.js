@@ -143,11 +143,28 @@
     return this.current.length === this.length;
   };
 
+  /*
+   * 이 자모열을 이미 낸 적이 있으면 그 줄 번호(1부터), 없으면 0.
+   *
+   * 같은 단어를 다시 내면 새로 알게 되는 것이 하나도 없는데 기회만 사라진다.
+   * 실수로 같은 줄을 두 번 올리는 일이 실제로 생기므로 제출 단계에서 막는다.
+   * 몇 번째 줄이었는지까지 돌려주는 것은, 자모 타일만 보고 어느 줄과 겹쳤는지
+   * 찾기가 생각보다 어렵기 때문이다.
+   */
+  Game.prototype.triedAt = function (jamo) {
+    for (var i = 0; i < this.rows.length; i++) {
+      if (this.rows[i].jamo === jamo) return i + 1;
+    }
+    return 0;
+  };
+
   /** 제출. { ok:false, reason } 또는 { ok:true, marks } 를 돌려준다. */
   Game.prototype.submit = function () {
     if (this.status !== 'play') return { ok: false, reason: 'done' };
     if (!this.isFull()) return { ok: false, reason: 'short' };
     if (!this.dict.valid.has(this.current)) return { ok: false, reason: 'unknown' };
+    var at = this.triedAt(this.current);
+    if (at) return { ok: false, reason: 'repeat', at: at };
 
     var marks = score(this.current, this.answerJamo);
     for (var i = 0; i < marks.length; i++) {

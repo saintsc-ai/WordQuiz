@@ -138,6 +138,7 @@
     if (!res.ok) {
       if (res.reason === 'short') Sheet.toast('자모 ' + game.length + '개를 모두 채우세요');
       if (res.reason === 'unknown') Sheet.toast('사전에 없는 단어예요 (명사만 됩니다)');
+      if (res.reason === 'repeat') Sheet.toast('이미 ' + res.at + '번째 줄에서 낸 단어예요');
       Board.shake();
       return;
     }
@@ -157,6 +158,8 @@
 
     // 덜 찼으면 사전을 물어볼 것도 없다. applySubmit 이 'short' 를 내보낸다.
     if (!game.isFull()) { applySubmit(); return; }
+    // 이미 낸 단어도 물어볼 것이 없다 — 그때 이미 사전을 통과한 단어다.
+    if (game.triedAt(game.current)) { applySubmit(); return; }
 
     /*
      * 사전은 서버에 있다(js/dict.js). 답이 올 때까지 입력을 막는다 — 안 그러면
