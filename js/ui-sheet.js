@@ -85,11 +85,15 @@
     else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
   }
 
-  function toast(msg) {
+  /*
+   * 잠깐 뜨는 알림. ms 를 주면 그만큼 머문다 — 안내문은 한눈에 읽히지만
+   * 뜻풀이는 한 문장이라 기본값으로는 다 읽기 전에 사라진다.
+   */
+  function toast(msg, ms) {
     toastEl.textContent = msg;
     toastEl.classList.add('show');
     clearTimeout(toastTimer);
-    toastTimer = setTimeout(function () { toastEl.classList.remove('show'); }, TOAST_MS);
+    toastTimer = setTimeout(function () { toastEl.classList.remove('show'); }, ms || TOAST_MS);
   }
 
   closeBtn.addEventListener('click', close);

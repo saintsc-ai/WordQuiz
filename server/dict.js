@@ -8,7 +8,8 @@
  * (정답 후보 answers-N.js 는 길이당 1~2천 개뿐이라 예전처럼 화면이 그대로 받는다.)
  *
  * 뜻풀이도 같은 이유로 여기 있다. 27만 개에 24MB 라 내려보낼 수 없다.
- * 화면은 판이 끝났을 때와 출제할 때 그 단어 하나만 /define 으로 묻는다.
+ * 화면은 한 줄 낼 때마다, 판이 끝났을 때, 출제할 때 그 단어 하나만
+ * /define 으로 묻는다.
  *
  * 기록 DB(var/wordquiz.db)와 일부러 다른 파일이다. 사전은 이미지에 실려 와
  * 배포마다 통째로 갈리고, 기록은 볼륨에 남아야 한다. 수명이 다르니 섞지 않는다.
@@ -40,6 +41,21 @@ function open(file) {
 
   var lookup = db.prepare('SELECT 1 FROM words WHERE n = ? AND jamo = ?');
   var size = db.prepare('SELECT count(*) AS n FROM words').get().n;
+
+  /*
+   * 자모열의 대표 표제어. 화면은 자기가 친 자모열밖에 모르는데 뜻풀이는
+   * 한글 표제어로 찾으므로, 그 사이를 이 칸이 잇는다.
+   *
+   * word 칸이 없는 옛 사전 파일이면 null 을 돌려준다 — 뜻풀이만 조용히
+   * 쉬고 판정은 그대로 돈다.
+   */
+  var hasWord = db.prepare(
+    "SELECT 1 FROM pragma_table_info('words') WHERE name = 'word'"
+  ).get() !== undefined;
+
+  var spelling = hasWord
+    ? db.prepare('SELECT word FROM words WHERE n = ? AND jamo = ?')
+    : null;
 
   /*
    * 뜻풀이 표는 옛 사전 파일에는 없다. 없으면 뜻풀이 기능만 조용히 쉰다 —
@@ -84,6 +100,12 @@ function open(file) {
     size: size,
     /** 이 길이의 사전에 있는 자모열인가. */
     has: function (n, jamo) { return lookup.get(n, jamo) !== undefined; },
+    /** 이 자모열의 대표 표제어. 없으면 null. */
+    spell: function (n, jamo) {
+      if (!spelling) return null;
+      var row = spelling.get(n, jamo);
+      return (row && row.word) || null;
+    },
     /** 표제어의 뜻풀이. 없으면 빈 배열. */
     define: function (word, limit) {
       if (!senses) return [];

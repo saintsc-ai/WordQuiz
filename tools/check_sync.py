@@ -14,6 +14,9 @@ import sqlite3
 import sys
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from build_dict import decompose
+
 ROOT = Path(__file__).resolve().parent.parent
 
 
@@ -78,13 +81,28 @@ def main():
         ok &= report("data/dict.db 존재", False, "파일 없음 -> python tools/build_dict.py")
     else:
         con = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)
+        # 자모열을 표제어로 옮기는 칸. 없으면 낸 단어의 뜻을 못 보여 준다
+        # (server/dict.js 의 spell). 서버는 그래도 돌지만 조용히 빠지므로 여기서 본다.
+        has_word = con.execute(
+            "SELECT 1 FROM pragma_table_info('words') WHERE name = 'word'").fetchone()
+        ok &= report("dict.db 에 words.word 칸이 있다", bool(has_word),
+                     "낡은 사전 -> python tools/build_dict.py")
         for n in py_lengths:
-            rows = [j for (j,) in con.execute("SELECT jamo FROM words WHERE n = ?", (n,))]
-            wrong = [j for j in rows if len(j) != n]
-            strange = sorted({c for j in rows for c in j} - keys)
+            rows = con.execute(
+                "SELECT jamo" + (", word" if has_word else "") +
+                " FROM words WHERE n = ?", (n,)).fetchall()
+            jamos = [r[0] for r in rows]
+            wrong = [j for j in jamos if len(j) != n]
+            strange = sorted({c for j in jamos for c in j} - keys)
             ok &= report(f"dict.db 자모 {n} — {len(rows)}개, 모두 {n}칸에 기본 24키",
                          bool(rows) and not wrong and not strange,
                          f"길이가 다른 것 {len(wrong)}개, 낯선 문자 {strange}")
+            # 표제어를 자모로 풀면 그 자모열이 되어야 한다. 어긋나면 낸 단어의
+            # 뜻으로 엉뚱한 말을 보여 주게 된다.
+            if has_word:
+                bad = [(j, w) for j, w in rows if decompose(w) != j][:5]
+                ok &= report(f"dict.db 자모 {n} — 표제어가 그 자모열로 풀린다",
+                             not bad, json.dumps(bad, ensure_ascii=False))
         con.close()
 
     print("\n전부 일치합니다." if ok else "\n어긋난 항목이 있습니다.")

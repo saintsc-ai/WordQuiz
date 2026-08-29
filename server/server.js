@@ -14,6 +14,7 @@
  *   POST /api   {"action":"submit", ...}
  *   GET  /valid?n=6&w=<자모열>[&w=...]
  *   GET  /define?w=<단어>          뜻풀이 + 어휘등급
+ *   GET  /define?n=6&j=<자모열>    같은 것을 자모열로 (대표 표제어를 함께 답한다)
  *   GET  /suggest?n=6              출제용 추천 단어 + 뜻풀이
  *
  * /valid 는 사전이 서버에만 있어서 생긴 주소다. 예전에는 data/words-N.js 를
@@ -125,16 +126,41 @@ function getValid(res, url) {
 }
 
 /*
- * 뜻풀이. 판이 끝났을 때와 직접 출제할 때 화면이 단어 하나를 물어본다.
+ * 뜻풀이. 한 줄 낼 때마다, 판이 끝났을 때, 직접 출제할 때 화면이 물어본다.
+ *
+ * 묻는 방법이 둘이다. 무슨 단어인지 이미 아는 쪽(정답 · 출제할 단어)은
+ * w=<단어> 로 묻고, 방금 친 추측은 j=<자모열>&n=<길이> 로 묻는다. 보드는
+ * 자모만 들고 있어서 자기가 무슨 단어를 쳤는지 모르기 때문이다. 자모열은
+ * words 표의 대표 표제어로 옮긴 뒤 같은 길로 간다.
+ *
+ * 답의 모양은 둘 다 같다 — 화면이 어느 쪽으로 물었는지 따지지 않게.
  *
  * 뜻풀이가 없는 단어도 200 에 빈 배열로 답한다 — 사전에 있지만 뜻이 안 실린
  * 경우가 있고, 그때 화면이 오류를 띄울 일은 아니다. 뜻이 있으면 보여 주고
  * 없으면 그 자리를 비우면 된다.
  */
 function getDefine(res, url) {
-  var word = (url.searchParams.get('w') || '').trim();
-  if (!word) return json(res, { ok: false, error: 'no_word' });
-  if (word.length > 12) return json(res, { ok: false, error: 'bad_word' });
+  var jamo = (url.searchParams.get('j') || '').trim();
+  var word;
+
+  if (jamo) {
+    var n = Number(url.searchParams.get('n'));
+    if (!(n >= 5 && n <= 10)) return json(res, { ok: false, error: 'bad_length' });
+    if (jamo.length !== n) return json(res, { ok: false, error: 'bad_jamo' });
+    // 사전에 없는 자모열이면 표제어가 없다. 오류가 아니라 '없음' 이다.
+    word = words ? words.spell(n, jamo) : null;
+    if (!word) {
+      res.writeHead(200, {
+        'Content-Type': 'application/json; charset=utf-8',
+        'Cache-Control': 'public, max-age=86400'
+      });
+      return res.end(JSON.stringify({ ok: true, word: '', level: null, senses: [] }));
+    }
+  } else {
+    word = (url.searchParams.get('w') || '').trim();
+    if (!word) return json(res, { ok: false, error: 'no_word' });
+    if (word.length > 12) return json(res, { ok: false, error: 'bad_word' });
+  }
 
   var senses = words ? words.define(word) : [];
   var level = words ? words.level(word) : null;

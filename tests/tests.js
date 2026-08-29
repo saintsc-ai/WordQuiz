@@ -347,6 +347,33 @@
       t.ok('빈 목록이면 멈춘다', needsMore(0, 0, false) === false);
     }
 
+    /* 낸 단어의 한 줄 뜻풀이 ---------------------------------------------
+     *
+     * 토스트에 들어갈 한 줄이라 길이가 규칙이다. 사전 문장은 100자를 넘는
+     * 것이 흔해서, 첫 문장만 남기고 그래도 길면 잘라야 한다.
+     */
+    var brief = global.Define && global.Define.brief;
+    t.ok('brief 가 있다', typeof brief === 'function');
+    if (typeof brief === 'function') {
+      t.eq('단어와 뜻을 줄표로 잇는다',
+           brief('가방', ['물건을 넣어 들고 다니는 물건']),
+           '가방 — 물건을 넣어 들고 다니는 물건');
+      t.eq('끝의 마침표는 뗀다',
+           brief('카메라', ['사진을 찍는 기계.']),
+           '카메라 — 사진을 찍는 기계');
+      t.eq('첫 문장만 남긴다',
+           brief('피린진', ['피린계 약제를 맞았을 때 생기는 발진. 열이 나기도 한다.']),
+           '피린진 — 피린계 약제를 맞았을 때 생기는 발진');
+      t.eq('숫자 속 마침표에서는 자르지 않는다',
+           brief('원주율', ['3.14 로 시작하는 수']),
+           '원주율 — 3.14 로 시작하는 수');
+      t.ok('첫 문장이 그래도 길면 잘라서 말줄임표를 붙인다',
+           brief('가', [new Array(200).join('가')]).length < 60 &&
+           brief('가', [new Array(200).join('가')]).slice(-1) === '…');
+      t.eq('뜻이 없으면 단어만', brief('사랑', []), '사랑');
+      t.eq('단어가 없으면 아무 말도 하지 않는다', brief('', ['뜻']), '');
+    }
+
     var passed = t.results.filter(function (r) { return r.ok; }).length;
     return { results: t.results, passed: passed, failed: t.results.length - passed };
   }

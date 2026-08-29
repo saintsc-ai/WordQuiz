@@ -20,6 +20,9 @@
   var TITLE = '단어 퍼즐';
   var TITLE_SHARED = '공유받은 단어';
 
+  // 낸 단어의 뜻을 띄워 두는 시간. 안내문보다 길다 — 읽을 것이 한 문장이다.
+  var WORD_TOAST_MS = 3200;
+
   // 물리 키보드(영문 자판 기준 두벌식 자리)
   var QWERTY = {
     q: 'ㅂ', w: 'ㅈ', e: 'ㄷ', r: 'ㄱ', t: 'ㅅ', y: 'ㅛ', u: 'ㅕ', i: 'ㅑ', o: 'ㅐ', p: 'ㅔ',
@@ -129,11 +132,37 @@
   }
 
   /*
+   * 방금 낸 줄이 무슨 단어였는지, 무슨 뜻인지 잠깐 알려 준다.
+   *
+   * 보드에는 자모만 남으므로 자기가 무엇을 냈는지 알아보기 어렵고, 알아본대도
+   * 뜻을 모르는 채로 내는 일이 흔하다. 사전은 서버에 있어 물어봐야 하는데
+   * (js/define.js), 그 왕복이 판을 붙들면 안 되니 뒤집기를 시작할 때 미리
+   * 물어 두고(applySubmit) 다 뒤집힌 뒤에 답을 꺼낸다.
+   *
+   * 판이 끝난 줄에는 띄우지 않는다. 결과 시트가 정답과 그 뜻을 제대로 보여
+   * 주는 자리이고, 시트가 토스트를 덮기도 한다.
+   *
+   * 늦게 온 답은 버린다. 기다리는 사이에 판이 바뀌었거나 다음 줄을 이미 냈다면,
+   * 그 뜻은 지금 화면에 있는 것과 상관없는 말이 된다.
+   */
+  function tellWord(pending, playing, jamo) {
+    if (!pending) return;
+    pending.then(function (info) {
+      if (game !== playing || game.status !== 'play' || Sheet.isOpen()) return;
+      var last = game.rows[game.rows.length - 1];
+      if (!last || last.jamo !== jamo) return;
+      var line = global.Define.brief(info.word, info.senses);
+      if (line) Sheet.toast(line, WORD_TOAST_MS);
+    });
+  }
+
+  /*
    * 사전 확인이 끝난 뒤의 제출. game.submit() 은 동기라, 여기 오기 전에
    * 그 자모열을 dict.check 로 물어봐 둬야 한다(onSubmit).
    */
   function applySubmit() {
     var rowIndex = game.rows.length;
+    var typed = game.current;
     var res = game.submit();
     if (!res.ok) {
       if (res.reason === 'short') Sheet.toast('자모 ' + game.length + '개를 모두 채우세요');
@@ -144,11 +173,15 @@
     }
 
     locked = true;
+    var playing = game;
+    // 뒤집기가 도는 1~2초 동안 뜻풀이를 물어 둔다. 대개 다 뒤집힐 때쯤 와 있다.
+    var meaning = global.Define ? global.Define.infoOfJamo(game.length, typed) : null;
     Board.reveal(game, rowIndex, function () {
       locked = false;
       Board.paintKeyboard(game);
       repaint();
-      if (game.status !== 'play') showResult();
+      if (game.status !== 'play') { showResult(); return; }
+      tellWord(meaning, playing, typed);
     });
   }
 

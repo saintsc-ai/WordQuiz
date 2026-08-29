@@ -16,13 +16,13 @@
         정답으로 내면 못 푸는 판이 생기므로 추측 허용에만 쓴다.
 
 만들어지는 파일 (data/):
-    dict.db       추측으로 인정되는 자모 입력열 전부 + 표제어의 뜻풀이.
+    dict.db       추측으로 인정되는 자모 입력열 전부 + 그 대표 표제어 + 뜻풀이.
                   자모 입력열은 두 사전의 합집합이다.
                   합집합인 이유는 지금 통과하던 말이 갑자기 거부되지 않게 하려는 것.
                   서버만 읽는다(server/dict.js). 브라우저로 내려보내지 않는다 —
                   십수만 개를 통으로 받게 하면 첫 화면이 무거워진다.
                   화면은 /valid 로 물어본다.
-                  뜻풀이는 판이 끝났을 때와 직접 출제할 때 보여 준다.
+                  뜻풀이는 한 줄 낼 때마다, 판이 끝났을 때, 직접 출제할 때 보여 준다.
                   이것도 브라우저로 내려보내지 않는다(9MB 다). /define 으로 묻는다.
                   기초사전 뜻이 있으면 그것을 먼저 쓴다 — 배우는 사람을 위해
                   쓴 문장이라 읽기 쉽다. 없으면 표준대사전 것을 쓴다.
@@ -190,9 +190,16 @@ def write_answers(con, answers, levels):
 def write_db(words, senses, answers, levels):
     """추측 허용 목록과 뜻풀이를 SQLite 한 파일로. server/dict.js 가 읽기 전용으로 연다.
 
-    WITHOUT ROWID 는 표 자체를 (n, jamo) 색인으로 만든다. 우리가 하는 질문이
-    '이 자모열이 있느냐' 하나뿐이라, 따로 색인을 달지 않아도 그 색인만 짚으면
-    끝나고 파일도 작아진다.
+    WITHOUT ROWID 는 표 자체를 (n, jamo) 색인으로 만든다. 자모열로 묻는 것이
+    전부라, 따로 색인을 달지 않아도 그 색인만 짚으면 끝나고 파일도 작아진다.
+
+    word 는 그 자모열의 대표 표제어다. 자모열만으로는 무슨 단어인지 알 수
+    없어서 넣는다 — 화면은 자기가 친 자모열밖에 모르는데, 뜻풀이(senses)는
+    한글 표제어로 찾는다. 그 사이를 잇는 것이 이 칸이다.
+
+    한 자모열에 단어가 둘인 경우(ㄱㅏㄱㄱㅏ = 가까 · 각가)는 대표 하나만
+    남는다. 십수만 개 중 서른 개 남짓이고, 그 자모열이 무슨 뜻이었는지
+    알려 주는 데는 대표 하나로 충분하다고 봤다.
 
     통째로 다시 만든다. 이어 붙이지 않는 편이 낫다 — 사전 원본이 바뀌면
     빠진 단어도 함께 사라져야 하는데, 지우는 쪽은 추적하기 어렵다.
@@ -202,9 +209,9 @@ def write_db(words, senses, answers, levels):
     con = sqlite3.connect(DB)
     con.execute("PRAGMA journal_mode = OFF")   # 만들고 끝. 복구할 중간 상태가 없다.
     con.execute("CREATE TABLE words (n INTEGER NOT NULL, jamo TEXT NOT NULL,"
-                " PRIMARY KEY (n, jamo)) WITHOUT ROWID")
-    con.executemany("INSERT INTO words (n, jamo) VALUES (?, ?)",
-                    ((n, jamo) for n in LENGTHS for jamo in words[n]))
+                " word TEXT NOT NULL, PRIMARY KEY (n, jamo)) WITHOUT ROWID")
+    con.executemany("INSERT INTO words (n, jamo, word) VALUES (?, ?, ?)",
+                    ((n, jamo, word) for n in LENGTHS for jamo, word in words[n].items()))
     n_senses = write_senses(con, senses)
     write_answers(con, answers, levels)
     con.commit()

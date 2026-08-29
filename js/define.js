@@ -50,6 +50,34 @@
     return infoOf(word).then(function (info) { return info.senses; });
   }
 
+  /*
+   * 자모열로 묻는다. 보드는 자기가 무슨 단어를 쳤는지 모르고 자모만 들고
+   * 있어서, 무엇을 낸 것인지 알려면 서버에 그 자모열의 표제어를 물어야 한다.
+   *
+   * 답에는 word 가 함께 온다. 사전에 없는 자모열이면 빈 문자열이다 —
+   * 오류가 아니라 '그런 단어는 없다' 이고, 부르는 쪽이 조용히 넘어가면 된다.
+   *
+   * 캐시 열쇠에 길이를 붙인다. 같은 자모열이 다른 길이일 수는 없지만,
+   * 단어로 물어본 것과 한 통에 담기면 '가방' 과 'ㄱㅏㅂㅏㅇ' 이 부딪친다.
+   */
+  function infoOfJamo(n, jamo) {
+    if (!n || !jamo) return Promise.resolve({ word: '', senses: [], level: null });
+    var key = n + ':' + jamo;
+    if (cache[key]) return cache[key];
+    var pending = get(DEFINE_URL + '?n=' + encodeURIComponent(n) +
+                      '&j=' + encodeURIComponent(jamo))
+      .then(function (data) {
+        if (!data || !data.ok) return { word: '', senses: [], level: null };
+        return { word: data.word || '', senses: data.senses || [], level: data.level || null };
+      })
+      .catch(function () {
+        delete cache[key];
+        return { word: '', senses: [], level: null };
+      });
+    cache[key] = pending;
+    return pending;
+  }
+
   /**
    * 어휘등급(초급·중급·고급). 없으면 null.
    *
@@ -115,6 +143,39 @@
       render(el, info.senses);
       return info;
     });
+  }
+
+  /*
+   * 토스트 한 줄짜리 뜻풀이.
+   *
+   * 사전 문장을 그대로 띄우면 안 된다. 뜻풀이는 중앙값이 27자지만 100자가
+   * 넘는 것이 만 개가 넘고(주로 표준대사전의 인물·역사 항목), 그런 문장이
+   * 보드 위를 덮으면 읽기 전에 사라진다.
+   *
+   * 그래서 두 번 줄인다. 먼저 첫 문장만 남긴다 — 사전 뜻풀이는 첫 문장이
+   * 정의이고 그 뒤는 부연이라, 여기서 자르면 뜻은 온전히 남는다. 그래도
+   * 길면 그때 잘라내고 말줄임표를 붙인다.
+   *
+   * 뜻이 없어도 단어는 알려 준다. 자모열 하나가 어떤 단어였는지만 알아도
+   * 다음 줄을 어떻게 낼지 정하는 데는 보탬이 된다.
+   */
+  var BRIEF_MAX = 44;
+
+  function brief(word, senses) {
+    if (!word) return '';
+    var text = senses && senses.length ? String(senses[0]).trim() : '';
+    if (!text) return word;
+
+    // 첫 문장. 마침표 뒤가 공백이거나 끝일 때만 문장 끝으로 본다 —
+    // '4,000' 같은 숫자에서 잘리지 않게.
+    var end = /^[\s\S]*?\.(?=\s|$)/.exec(text);
+    if (end) text = end[0];
+    text = text.replace(/\.$/, '');
+
+    if (text.length > BRIEF_MAX) {
+      text = text.slice(0, BRIEF_MAX).replace(/[\s,·]+$/, '') + '…';
+    }
+    return word + ' — ' + text;
   }
 
   /*
@@ -196,6 +257,7 @@
     return '접근을 잘했네요 — ' + many + '개 중 하나였어요';
   }
 
-  global.Define = { of: of, infoOf: infoOf, levelOf: levelOf, suggest: suggest,
-                    render: render, fill: fill, odds: odds, oddsText: oddsText };
+  global.Define = { of: of, infoOf: infoOf, infoOfJamo: infoOfJamo, levelOf: levelOf,
+                    suggest: suggest, render: render, fill: fill, brief: brief,
+                    odds: odds, oddsText: oddsText };
 })(window);
